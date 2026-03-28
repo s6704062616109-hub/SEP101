@@ -20,21 +20,27 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
                 
                 // ================= ระบบเช็กสถานะแบน =================
                 if ($user['is_banned'] == 1) {
-                    // ตรวจสอบว่าหมดเวลาแบนหรือยัง
                     if ($user['ban_until'] !== null && strtotime($user['ban_until']) <= time()) {
-                        // ปลดแบนอัตโนมัติ
                         $unban_stmt = $conn->prepare("UPDATE users SET is_banned=0, ban_category=NULL, ban_details=NULL, ban_until=NULL WHERE id=?");
                         $unban_stmt->bind_param("i", $user['id']);
                         $unban_stmt->execute();
                     } else {
-                        // ยังโดนแบนอยู่ เตะออก!
                         $ban_time = ($user['ban_until'] !== null) ? "ถึงวันที่ " . date('d/m/Y H:i', strtotime($user['ban_until'])) : "ถาวร";
                         $message = "<span style='color: red;'>⚠️ บัญชีของคุณถูกระงับการใช้งาน<br>สาเหตุ: {$user['ban_category']}<br>ระยะเวลา: $ban_time</span>";
-                        goto end_login; // กระโดดข้ามการล็อกอิน
+                        goto end_login; 
                     }
                 }
-                // ===============================================
 
+                // ================= ระบบบันทึก Log =================
+                // 1. ลบ Log ที่เก่าเกิน 1 เดือนทิ้งอัตโนมัติ (ระบบเคลียร์ขยะ)
+                $conn->query("DELETE FROM login_logs WHERE login_time < DATE_SUB(NOW(), INTERVAL 1 MONTH)");
+                
+                // 2. บันทึกประวัติการเข้าสู่ระบบครั้งนี้
+                $log_stmt = $conn->prepare("INSERT INTO login_logs (user_id) VALUES (?)");
+                $log_stmt->bind_param("i", $user['id']);
+                $log_stmt->execute();
+
+                // สร้าง Session และเข้าสู่ระบบ
                 $_SESSION['user_id'] = $user['id'];
                 $_SESSION['username'] = $user['username'];
                 $_SESSION['role'] = $user['role'];

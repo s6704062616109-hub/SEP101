@@ -72,3 +72,38 @@ body { font-family: Arial, sans-serif; background-color: #f4f4f9; padding: 20px;
 .search-btn:hover { background-color: #0073e6; }
 .filter-btn { background-color: #6c757d; color: white; border: none; padding: 10px 15px; border-radius: 20px; cursor: pointer; font-weight: bold; transition: 0.2s; font-family: inherit;}
 .filter-btn:hover { background-color: #5a6268; }
+
+/* ================= สไตล์ Grid รูปภาพ (เหมือน Facebook) ================= */
+.post-image-grid { display: grid; gap: 2px; border-radius: 8px; overflow: hidden; margin-top: 10px; background-color: #f0f2f5; }
+.post-image-grid img { width: 100%; height: 100%; object-fit: cover; cursor: pointer; transition: 0.2s; }
+.post-image-grid img:hover { filter: brightness(0.9); }
+.img-wrapper { position: relative; width: 100%; height: 100%; }
+
+/* การแบ่งสัดส่วน Grid ตามจำนวนรูป */
+/* 2.1 1 รูป (ไม่แบ่ง) */
+.grid-1 { grid-template-columns: 1fr; max-height: 500px; }
+/* 2.2 2 รูป (ซ้าย-ขวา) */
+.grid-2 { grid-template-columns: 1fr 1fr; height: 350px; }
+/* 2.3 3 รูป (บน 1 ล่างซ้ายขวา 1) */
+.grid-3 { grid-template-columns: 1fr 1fr; grid-template-rows: 2fr 1fr; height: 400px; }
+.grid-3 .img-wrapper:nth-child(1) { grid-column: span 2; } 
+/* 2.4 และ 2.5 (4 รูป หรือมากกว่า = ตาราง 2x2) */
+.grid-4 { grid-template-columns: 1fr 1fr; grid-template-rows: 1fr 1fr; height: 400px; }
+
+/* ตัวเลขกรณีมีรูปมากกว่า 4 */
+.more-images-overlay { position: absolute; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.5); color: white; display: flex; align-items: center; justify-content: center; font-size: 30px; font-weight: bold; pointer-events: none; }
+
+/* ================= สไตล์ Popup ซูมรูปภาพ (Lightbox Gallery) ================= */
+.lightbox-modal { display: none; position: fixed; z-index: 9999; left: 0; top: 0; width: 100%; height: 100%; background-color: rgba(0,0,0,0.95); justify-content: center; align-items: center; flex-direction: column; }
+.lightbox-content { max-width: 90%; max-height: 85vh; border-radius: 8px; object-fit: contain; box-shadow: 0 0 20px rgba(0,0,0,0.5); }
+.lightbox-close { position: absolute; top: 20px; right: 30px; color: white; font-size: 40px; font-weight: bold; cursor: pointer; transition: 0.3s; z-index: 10000; }
+.lightbox-close:hover { color: #dc3545; }
+
+/* ปุ่มลูกศรซ้ายขวา */
+.lightbox-nav { position: absolute; top: 50%; transform: translateY(-50%); color: white; font-size: 40px; font-weight: bold; cursor: pointer; user-select: none; transition: 0.3s; padding: 15px; z-index: 10000; background: rgba(0,0,0,0.4); border-radius: 50%; width: 50px; height: 50px; display: flex; align-items: center; justify-content: center; }
+.lightbox-nav:hover { background: rgba(0,0,0,0.8); }
+.lightbox-prev { left: 20px; }
+.lightbox-next { right: 20px; }
+
+/* ตัวนับจำนวนรูป */
+.lightbox-counter { position: absolute; top: 25px; left: 30px; color: white; font-size: 18px; font-weight: bold; z-index: 10000; background: rgba(0,0,0,0.5); padding: 5px 15px; border-radius: 20px; }
