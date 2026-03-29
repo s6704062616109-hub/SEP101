@@ -86,199 +86,180 @@ $result_posts = $stmt_posts->get_result();
 ?>
 
 <!DOCTYPE html>
-<html lang="th">
+<html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>หน้าแรก - ระบบแจ้งของหาย</title>
-    <link rel="stylesheet" href="style.css">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Home - Lost & Found App</title>
+    <link rel="stylesheet" href="style.css?v=<?php echo time(); ?>">
 </head>
 <body>
 
-<div class="container">
-    <div class="header">
-        <h2 class="header-title">ระบบแจ้งของหาย</h2>
-        <div class="user-menu">
-            <a href="profile.php" class="profile-link">
-                <img src="<?php echo htmlspecialchars($my_profile_image); ?>" class="nav-profile-img" alt="Profile">
-                <span><?php echo htmlspecialchars($user_data['username']); ?></span>
-            </a>
+<div class="app-container">
+    
+    <header class="top-bar">
+        <div class="header-logo-group">
+            <button class="menu-toggle" onclick="toggleSidebar()">☰</button>
+            <a href="index.php" class="header-logo">Lost & Found</a>
         </div>
-    </div>
+        
+        <form method="GET" action="index.php" class="header-search-form">
+            <input type="text" name="q" class="search-input" placeholder="Search items, locations..." value="<?php echo htmlspecialchars($search_text); ?>">
+            <button type="submit" class="btn-header btn-header-primary">Search</button>
+            <button type="button" class="btn-header btn-header-secondary" onclick="openFilterModal()">⚙️ Filter</button>
+        </form>
+        
+        <a href="profile.php" class="header-user-menu">
+            <img src="<?php echo htmlspecialchars($my_profile_image); ?>" class="header-profile-img" alt="Profile">
+            <span><?php echo htmlspecialchars($user_data['username']); ?></span>
+        </a>
+    </header>
 
-    <form method="GET" action="index.php" class="search-form">
-        <div class="search-container" style="display: flex; gap: 8px; margin-bottom: 20px; align-items: center; justify-content: center;">
-            <input type="text" name="q" class="search-input" placeholder="🔍 ค้นหาสิ่งของ, สถานที่, รายละเอียด..." value="<?php echo htmlspecialchars($search_text); ?>" style="flex-grow: 1; padding: 12px 15px; border: 1px solid #ccc; border-radius: 20px; font-size: 14px; outline: none;">
-            <button type="submit" class="search-btn">ค้นหา</button>
-            <button type="button" class="filter-btn" onclick="openFilterModal()">⚙️ กรอง</button>
+    <div class="overlay" id="mobileOverlay" onclick="toggleSidebar()"></div>
+
+    <aside class="sidebar" id="sidebar">
+        <div class="sidebar-menu">
+            <div class="menu-label">Discover</div>
+            <a href="index.php" class="menu-item active"><span class="icon">🏠</span> Home</a>
+            <a href="#" class="menu-item"><span class="icon">🧭</span> Explore</a>
+            
+            <div class="menu-label" style="margin-top: 20px;">My Space</div>
+            <a href="my_posts.php" class="menu-item"><span class="icon">📁</span> My Posts</a>
+            <a href="#" class="menu-item"><span class="icon">⏱️</span> History</a>
+            
             <?php if ($user_data['role'] == 'admin'): ?>
-                <a href="search_users.php" class="filter-btn" style="background-color: #dc3545; text-decoration: none;">👥 ค้นหาผู้ใช้ (Admin)</a>
+                <div class="menu-label" style="margin-top: 20px; color:#ff6b6b;">Admin Only</div>
+                <a href="search_users.php" class="menu-item" style="color:#ff6b6b;"><span class="icon">⚙️</span> Backend (Admin)</a>
+                <a href="logs.php" class="menu-item" style="color:#ff6b6b;"><span class="icon">📜</span> System Logs</a>
             <?php endif; ?>
         </div>
-
-        <div id="filterSearchModal" class="modal" style="z-index: 1500;">
-            <div class="modal-content">
-                <span class="close-btn" onclick="closeFilterModal()">&times;</span>
-                <h3 style="margin-top: 0; border-bottom: 1px solid #eee; padding-bottom: 10px;">⚙️ ตัวกรองการค้นหา</h3>
-                
-                <label style="font-weight: bold; margin-top: 10px; display: block;">1. ประเภทการแจ้ง:</label>
-                <select name="filter_type" style="width: 100%; padding: 8px; border-radius: 4px; border: 1px solid #ccc; font-family: inherit;">
-                    <option value="">-- ทั้งหมด --</option>
-                    <option value="lost" <?php if($filter_type=='lost') echo 'selected'; ?>>🔍 แจ้งของหาย</option>
-                    <option value="found" <?php if($filter_type=='found') echo 'selected'; ?>>💡 แจ้งพบของ</option>
-                </select>
-
-                <label style="font-weight: bold; margin-top: 15px; display: block;">2. สถานะ:</label>
-                <select name="filter_status" style="width: 100%; padding: 8px; border-radius: 4px; border: 1px solid #ccc; font-family: inherit;">
-                    <option value="">-- ทั้งหมด --</option>
-                    <option value="active" <?php if($filter_status=='active') echo 'selected'; ?>>⏳ ยังไม่สำเร็จ</option>
-                    <option value="resolved" <?php if($filter_status=='resolved') echo 'selected'; ?>>✅ สำเร็จแล้ว</option>
-                </select>
-
-                <label style="font-weight: bold; margin-top: 15px; display: block;">3. หมวดหมู่สิ่งของ:</label>
-                <div class="checkbox-group" style="background: #f9f9f9; padding: 10px; border-radius: 4px; display: grid; grid-template-columns: 1fr 1fr; gap: 8px; font-size: 14px;">
-                    <?php 
-                        $all_cats = ['อุปกรณ์การเรียน', 'อุปกรณ์อิเล็กทรอนิกส์', 'ของใช้ส่วนตัว', 'เอกสารสำคัญ / บัตร', 'อาหาร / กล่องข้าว', 'ของมีค่า / ของสำคัญอื่นๆ', 'อื่นๆ'];
-                        foreach($all_cats as $c):
-                    ?>
-                        <label style="cursor: pointer;"><input type="checkbox" name="category[]" value="<?php echo $c; ?>" <?php if(in_array($c, $filter_categories)) echo 'checked'; ?>> <?php echo $c; ?></label>
-                    <?php endforeach; ?>
-                </div>
-                <button type="submit" class="search-btn" style="width: 100%; justify-content: center; margin-top: 20px;">ยืนยันและค้นหา</button>
-            </div>
+        
+        <div class="sidebar-footer">
+            <a href="profile.php" class="menu-item"><span class="icon">👤</span> Settings</a>
+            <a href="logout.php" class="menu-item" style="color: #ff6b6b;"><span class="icon">🚪</span> Sign Out</a>
         </div>
-    </form>
+    </aside>
 
-    <?php if ($search_text !== '' || $filter_type !== '' || $filter_status !== '' || !empty($filter_categories)): ?>
-        <a href="index.php" class="clear-search" style="display:block; text-align:center; color:#dc3545; text-decoration:none; margin-bottom:15px; font-weight:bold;">✖ ล้างการค้นหาทั้งหมด (แสดงโพสต์ทั้งหมด)</a>
-    <?php endif; ?>
-
-    <div class="action-buttons-container">
-        <a href="create_post.php" class="action-btn create-btn">➕ สร้างโพสต์</a>
-        <a href="my_posts.php" class="action-btn my-post-btn">📁 โพสต์ของฉัน</a>
-    </div>
-    <hr style="border: 0; border-top: 1px solid #ddd; margin-bottom: 20px;">
-
-    <?php if ($result_posts->num_rows > 0): ?>
-        <?php while($post = $result_posts->fetch_assoc()): ?>
-            <div class="post-card">
-                
-                <div class="post-header" style="justify-content: space-between;">
-                    <div style="display: flex; align-items: center; gap: 10px;">
-                        <?php $author_img = !empty($post['profile_picture']) ? $post['profile_picture'] : 'https://via.placeholder.com/45?text=U'; ?>
-                        <img src="<?php echo htmlspecialchars($author_img); ?>" class="post-profile-img" style="cursor:pointer;" onclick="openProfileModal(<?php echo $post['post_user_id']; ?>)">
-                        <div>
-                            <p class="post-author" style="cursor:pointer; color:#0084ff;" onclick="openProfileModal(<?php echo $post['post_user_id']; ?>)"><?php echo htmlspecialchars($post['username']); ?></p>
-                            <p class="post-time"><?php echo date('d/m/Y H:i', strtotime($post['created_at'])); ?></p>
-                        </div>
-                    </div>
-                    
-                    <?php if ($user_data['role'] == 'admin'): ?>
-                        <a href="delete_post.php?id=<?php echo $post['post_id']; ?>" class="delete-btn" style="background-color: #dc3545; color: white; padding: 5px 10px; border-radius: 4px; text-decoration: none; font-size: 12px; height: fit-content;" onclick="return confirm('ในฐานะ Admin คุณต้องการลบโพสต์นี้ใช่หรือไม่?');">🗑️ ลบ</a>
-                    <?php endif; ?>
+    <main class="main-content">
+        <div class="content-wrapper">
+            
+            <div class="page-title-bar">
+                <h1 class="page-heading">Discover Feed</h1>
+                <div class="action-buttons-group">
+                    <a href="create_post.php" class="btn btn-success">+ Create Post</a>
                 </div>
+            </div>
 
-                <div class="post-body">
-                    <?php if ($post['status'] == 'resolved'): ?>
-                        <span class="badge" style="background-color: #28a745;">✅ สำเร็จแล้ว</span>
-                    <?php else: ?>
-                        <span class="badge" style="background-color: #ffc107; color: #333;">⏳ ยังไม่สำเร็จ</span>
-                    <?php endif; ?>
+            <?php if ($search_text !== '' || $filter_type !== '' || $filter_status !== '' || !empty($filter_categories)): ?>
+                <a href="index.php" style="display:inline-block; margin-bottom:15px; color:#dc3545; text-decoration:none; font-weight:bold; font-size:14px;">✖ Clear all filters</a>
+            <?php endif; ?>
 
-                    <?php if ($post['post_type'] == 'lost'): ?>
-                        <span class="badge badge-lost">🔍 แจ้งของหาย</span>
-                    <?php else: ?>
-                        <span class="badge badge-found">💡 พบสิ่งของ</span>
-                    <?php endif; ?>
-
-                    <?php 
-                        $categories = !empty($post['item_category']) ? explode(",", $post['item_category']) : ['อื่นๆ'];
-                        foreach($categories as $cat): 
-                            $cat = trim($cat);
-                            if(!empty($cat)):
-                    ?>
-                        <span class="badge" style="background-color: #6c757d;">🏷️ <?php echo htmlspecialchars($cat); ?></span>
-                    <?php 
-                            endif;
-                        endforeach; 
-                    ?>
-
-                    <h3 class="post-title" style="margin-top: 10px;"><?php echo htmlspecialchars($post['title']); ?></h3>
-                    <p class="post-desc"><?php echo nl2br(htmlspecialchars($post['description'])); ?></p>
-                    
-                    <?php if (!empty($post['image_url'])): 
-                        $images = explode(",", $post['image_url']); 
-                        $images = array_map('trim', $images); // ตัดช่องว่าง
-                        $images = array_filter($images); // เอาค่าว่างออก
-                        $img_count = count($images);
+            <?php if ($result_posts->num_rows > 0): ?>
+                <?php while($post = $result_posts->fetch_assoc()): ?>
+                    <div class="post-card">
                         
-                        // กำหนด Class ให้ Grid ตามจำนวนรูป (มากสุดคือ grid-4)
-                        $grid_class = "grid-" . ($img_count >= 4 ? 4 : $img_count);
-                        
-                        // สร้าง Array รูปภาพทั้งหมดส่งไปให้ JavaScript ใช้งานตอนกดลูกศรเลื่อนรูป
-                        $js_images_array = htmlspecialchars(json_encode(array_values($images)), ENT_QUOTES, 'UTF-8');
-                    ?>
-                        <div class="post-image-grid <?php echo $grid_class; ?>">
-                            <?php 
-                            foreach($images as $index => $img): 
-                                if($index < 4): 
-                                    $overlay = '';
-                                    if($index == 3 && $img_count > 4) {
-                                        $more = $img_count - 4;
-                                        $overlay = "<div class='more-images-overlay'>+$more</div>";
-                                    }
-                            ?>
-                                <div class="img-wrapper" onclick="openLightbox(<?php echo $js_images_array; ?>, <?php echo $index; ?>)">
-                                    <img src="<?php echo htmlspecialchars($img); ?>" alt="Post Image">
-                                    <?php echo $overlay; ?>
+                        <div class="post-header">
+                            <div style="display: flex; align-items: center; gap: 12px;">
+                                <?php $author_img = !empty($post['profile_picture']) ? $post['profile_picture'] : 'https://via.placeholder.com/45?text=U'; ?>
+                                <img src="<?php echo htmlspecialchars($author_img); ?>" class="post-profile-img" style="cursor:pointer;" onclick="openProfileModal(<?php echo $post['post_user_id']; ?>)">
+                                <div>
+                                    <p class="post-author" style="cursor:pointer;" onclick="openProfileModal(<?php echo $post['post_user_id']; ?>)"><?php echo htmlspecialchars($post['username']); ?></p>
+                                    <p class="post-time"><?php echo date('d M Y, H:i', strtotime($post['created_at'])); ?></p>
                                 </div>
-                            <?php 
-                                endif; 
-                            endforeach; 
-                            ?>
+                            </div>
+                            
+                            <?php if ($user_data['role'] == 'admin'): ?>
+                                <a href="delete_post.php?id=<?php echo $post['post_id']; ?>" class="btn btn-danger" style="padding: 5px 10px; font-size: 12px; height: fit-content;" onclick="return confirm('As an Admin, are you sure you want to delete this post?');">🗑️ Delete</a>
+                            <?php endif; ?>
                         </div>
-                    <?php endif; ?>
-                    </div>
 
-                <div class="post-footer">
-                    <button onclick="openModal(<?php echo $post['post_id']; ?>)" class="comment-btn" style="border: none; cursor: pointer; font-family: inherit;">💬 แสดงความคิดเห็น</button>
+                        <div class="post-body">
+                            <?php if ($post['status'] == 'resolved'): ?>
+                                <span class="badge" style="background-color: #28a745;">✅ Resolved</span>
+                            <?php else: ?>
+                                <span class="badge" style="background-color: #ffc107; color: #333;">⏳ Pending</span>
+                            <?php endif; ?>
+
+                            <?php if ($post['post_type'] == 'lost'): ?>
+                                <span class="badge badge-danger">🔍 Lost Item</span>
+                            <?php else: ?>
+                                <span class="badge badge-primary">💡 Found Item</span>
+                            <?php endif; ?>
+
+                            <h3 class="post-title"><?php echo htmlspecialchars($post['title']); ?></h3>
+                            <p class="post-desc"><?php echo nl2br(htmlspecialchars($post['description'])); ?></p>
+                            
+                            <?php if (!empty($post['image_url'])): 
+                                $images = explode(",", $post['image_url']); 
+                                $images = array_map('trim', $images);
+                                $images = array_filter($images);
+                                $img_count = count($images);
+                                $grid_class = "grid-" . ($img_count >= 4 ? 4 : $img_count);
+                                $js_images_array = htmlspecialchars(json_encode(array_values($images)), ENT_QUOTES, 'UTF-8');
+                            ?>
+                                <div class="post-image-grid <?php echo $grid_class; ?>">
+                                    <?php 
+                                    foreach($images as $index => $img): 
+                                        if($index < 4): 
+                                            $overlay = '';
+                                            if($index == 3 && $img_count > 4) {
+                                                $more = $img_count - 4;
+                                                $overlay = "<div class='more-images-overlay'>+$more</div>";
+                                            }
+                                    ?>
+                                        <div class="img-wrapper" onclick="openLightbox(<?php echo $js_images_array; ?>, <?php echo $index; ?>)">
+                                            <img src="<?php echo htmlspecialchars($img); ?>" alt="Post Image">
+                                            <?php echo $overlay; ?>
+                                        </div>
+                                    <?php 
+                                        endif; 
+                                    endforeach; 
+                                    ?>
+                                </div>
+                            <?php endif; ?>
+                        </div>
+
+                        <div class="post-footer">
+                            <button onclick="openModal(<?php echo $post['post_id']; ?>)" class="comment-btn">💬 Comments</button>
+                        </div>
+                    </div>
+                <?php endwhile; ?>
+            <?php else: ?>
+                <div style="text-align: center; padding: 50px 0; color: #888;">
+                    <h3 style="margin-bottom: 5px;">No posts found 🕵️‍♂️</h3>
+                    <p>Try searching with different keywords or clear the filters.</p>
                 </div>
-            </div>
-        <?php endwhile; ?>
-    <?php else: ?>
-        <div style="text-align: center; padding: 40px 0; color: gray;">
-            <h3 style="margin-bottom: 5px;">ไม่พบโพสต์ที่คุณค้นหา 🕵️‍♂️</h3>
-            <p>ลองเปลี่ยนคำค้นหา หรือล้างตัวกรองดูนะครับ</p>
+            <?php endif; ?>
         </div>
-    <?php endif; ?>
+    </main>
 </div>
 
 <div id="commentModal" class="modal">
     <div class="modal-content">
         <span class="close-btn" onclick="closeModal()">&times;</span>
-        <h3 style="margin-top: 0; border-bottom: 1px solid #eee; padding-bottom: 10px;">ความคิดเห็น</h3>
-        <div id="commentList" class="comment-list"></div>
-        <div class="comment-input-area">
+        <h3 style="margin-top: 0; border-bottom: 1px solid #eee; padding-bottom: 10px;">Comments</h3>
+        <div id="commentList" class="comment-list" style="margin-bottom: 15px; max-height: 300px; overflow-y:auto; scrollbar-width: thin;"></div>
+        <div class="comment-input-area" style="display:flex; gap:10px;">
             <input type="hidden" id="modalPostId">
-            <input type="text" id="commentText" placeholder="เขียนความคิดเห็น..." onkeypress="handleEnter(event)">
-            <button onclick="submitComment()" class="send-btn">ส่ง</button>
+            <input type="text" id="commentText" placeholder="Write a comment..." onkeypress="handleEnter(event)" style="flex-grow:1; padding:10px; border-radius:8px; border:1px solid #ccc; font-family: inherit;">
+            <button onclick="submitComment()" class="btn btn-primary">Send</button>
         </div>
     </div>
 </div>
 
-<div id="profileModal" class="modal" style="z-index: 2000;">
+<div id="profileModal" class="modal">
     <div class="modal-content" style="text-align: center; max-width: 350px;">
         <span class="close-btn" onclick="closeProfileModal()">&times;</span>
-        <img id="pm-img" src="" style="width: 100px; height: 100px; border-radius: 50%; object-fit: cover; margin: auto; border: 3px solid #0084ff;">
+        <img id="pm-img" src="" style="width: 100px; height: 100px; border-radius: 50%; object-fit: cover; margin: auto; border: 3px solid var(--primary);">
         <h2 id="pm-name" style="margin: 10px 0;"></h2>
-        <p id="pm-ban-status" style="color: #dc3545; font-weight: bold; display: none; background: #ffeeba; padding: 5px; border-radius: 4px;">⚠️ ถูกแบน</p>
-        <p style="color: gray; font-size: 14px;">ข้อมูลติดต่อ:</p>
-        <p id="pm-contact" style="background: #f4f4f9; padding: 10px; border-radius: 8px; font-size: 14px; text-align: left;"></p>
+        <p id="pm-ban-status" style="color: #dc3545; font-weight: bold; display: none; background: #ffeeba; padding: 5px; border-radius: 4px;">⚠️ Banned</p>
+        <p style="color: gray; font-size: 14px;">Contact Info:</p>
+        <p id="pm-contact" style="background: #f4f6f9; padding: 15px; border-radius: 8px; font-size: 14px; text-align: left;"></p>
 
-        <div id="admin-ban-controls" style="display: none; margin-top: 15px; border-top: 1px solid #ccc; padding-top: 15px;">
+        <div id="admin-ban-controls" style="display: none; margin-top: 15px; border-top: 1px solid #eee; padding-top: 15px;">
             <input type="hidden" id="targetUserId">
-            <span id="targetUserName" style="display:none;"></span>
-            <button id="btn-show-ban" onclick="openBanModal()" class="delete-btn" style="width: 100%; border: none; padding: 10px; border-radius: 4px; color: white; cursor: pointer;">🚫 ระงับการใช้งาน (แบน)</button>
-            <button id="btn-do-unban" onclick="unbanUser()" class="search-btn" style="width: 100%; background-color: #28a745; display: none; border: none; padding: 10px; color: white; border-radius: 4px; cursor: pointer;">✅ ปลดแบนผู้ใช้นี้</button>
+            <button id="btn-show-ban" onclick="openBanModal()" class="btn btn-danger" style="width: 100%; margin-bottom:5px;">🚫 Ban User</button>
+            <button id="btn-do-unban" onclick="unbanUser()" class="btn btn-success" style="width: 100%; background-color: #28a745; display: none;">✅ Unban User</button>
         </div>
     </div>
 </div>
@@ -286,30 +267,26 @@ $result_posts = $stmt_posts->get_result();
 <div id="banModal" class="modal" style="z-index: 2500;">
     <div class="modal-content" style="max-width: 400px;">
         <span class="close-btn" onclick="closeBanModal()">&times;</span>
-        <h3 style="margin-top: 0; color: #dc3545;">🚫 ระงับการใช้งาน</h3>
-        <label>สาเหตุหลัก:</label>
-        <select id="banCategory" style="width: 100%; padding: 8px; margin-bottom: 10px; font-family: inherit;">
-            <option value="พฤติกรรมไม่เหมาะสม / ละเมิดกฎ">พฤติกรรมไม่เหมาะสม / ละเมิดกฎ</option>
-            <option value="แจ้งข้อมูลเท็จ">แจ้งข้อมูลเท็จ</option>
-            <option value="พยายามโกง / แอบอ้าง">พยายามโกง / แอบอ้าง</option>
-            <option value="ใช้งานผิดวัตถุประสงค์ระบบ">ใช้งานผิดวัตถุประสงค์ระบบ</option>
-            <option value="ละเมิดความปลอดภัยระบบ">ละเมิดความปลอดภัยระบบ</option>
-            <option value="ไม่ปฏิบัติตามกติกา">ไม่ปฏิบัติตามกติกา</option>
-            <option value="อื่นๆ">อื่นๆ</option>
+        <h3 style="margin-top: 0; color: #dc3545;">🚫 Ban User</h3>
+        <label style="display:block; margin-top:10px; font-weight:bold;">Reason:</label>
+        <select id="banCategory" style="width: 100%; padding: 10px; border-radius:8px; margin-bottom: 10px; border:1px solid #ccc; font-family:inherit;">
+            <option value="Inappropriate Behavior">Inappropriate Behavior</option>
+            <option value="Fake Information">Fake Information</option>
+            <option value="Scam/Fraud">Scam / Fraud</option>
+            <option value="System Abuse">System Abuse</option>
+            <option value="Others">Others</option>
         </select>
-        <label>รายละเอียดเพิ่มเติม:</label>
-        <textarea id="banDetails" rows="3" style="width: 100%; padding: 8px; margin-bottom: 10px; font-family: inherit;" placeholder="กรอกรายละเอียด..."></textarea>
-        <label>ระยะเวลาแบน:</label>
-        <select id="banDuration" style="width: 100%; padding: 8px; margin-bottom: 20px; font-family: inherit;">
-            <option value="1h">1 ชั่วโมง</option>
-            <option value="1d">1 วัน</option>
-            <option value="3d">3 วัน</option>
-            <option value="7d">7 วัน</option>
-            <option value="1m">1 เดือน</option>
-            <option value="1y">1 ปี</option>
-            <option value="permanent">ถาวร</option>
+        <label style="display:block; font-weight:bold;">Details:</label>
+        <textarea id="banDetails" rows="3" style="width: 100%; padding: 10px; border-radius:8px; margin-bottom: 10px; border:1px solid #ccc; font-family: inherit;" placeholder="Enter details..."></textarea>
+        <label style="display:block; font-weight:bold;">Duration:</label>
+        <select id="banDuration" style="width: 100%; padding: 10px; border-radius:8px; margin-bottom: 20px; border:1px solid #ccc; font-family: inherit;">
+            <option value="1h">1 Hour</option>
+            <option value="1d">1 Day</option>
+            <option value="7d">7 Days</option>
+            <option value="1m">1 Month</option>
+            <option value="permanent">Permanent</option>
         </select>
-        <button onclick="submitBan()" class="delete-btn" style="width: 100%; border: none; padding: 10px; border-radius: 4px; color: white; cursor: pointer;">ยืนยันการแบน</button>
+        <button onclick="submitBan()" class="btn btn-danger" style="width: 100%;">Confirm Ban</button>
     </div>
 </div>
 
@@ -321,23 +298,60 @@ $result_posts = $stmt_posts->get_result();
     <div class="lightbox-nav lightbox-next" onclick="changeLightboxImage(event, 1)">&#10095;</div>
 </div>
 
+<div id="filterSearchModal" class="modal">
+    <div class="modal-content">
+        <form method="GET" action="index.php">
+            <span class="close-btn" onclick="closeFilterModal()">&times;</span>
+            <h3 style="margin-top: 0; border-bottom: 1px solid #eee; padding-bottom: 10px;">⚙️ Search Filters</h3>
+            
+            <label style="font-weight: bold; margin-top: 10px; display: block;">1. Post Type:</label>
+            <select name="filter_type" style="width: 100%; padding: 10px; border-radius: 8px; border: 1px solid #ccc; font-family: inherit;">
+                <option value="">-- All Types --</option>
+                <option value="lost" <?php if($filter_type=='lost') echo 'selected'; ?>>🔍 Lost Item</option>
+                <option value="found" <?php if($filter_type=='found') echo 'selected'; ?>>💡 Found Item</option>
+            </select>
+
+            <label style="font-weight: bold; margin-top: 15px; display: block;">2. Status:</label>
+            <select name="filter_status" style="width: 100%; padding: 10px; border-radius: 8px; border: 1px solid #ccc; font-family: inherit;">
+                <option value="">-- All Statuses --</option>
+                <option value="active" <?php if($filter_status=='active') echo 'selected'; ?>>⏳ Pending</option>
+                <option value="resolved" <?php if($filter_status=='resolved') echo 'selected'; ?>>✅ Resolved</option>
+            </select>
+
+            <label style="font-weight: bold; margin-top: 15px; display: block;">3. Category:</label>
+            <div class="checkbox-group">
+                <?php 
+                    $all_cats = ['อุปกรณ์การเรียน', 'อุปกรณ์อิเล็กทรอนิกส์', 'ของใช้ส่วนตัว', 'เอกสารสำคัญ / บัตร', 'อาหาร / กล่องข้าว', 'ของมีค่า / ของสำคัญอื่นๆ', 'อื่นๆ'];
+                    $cat_en = ['Study Tools', 'Electronics', 'Personal Items', 'Documents/Cards', 'Food/Boxes', 'Valuables', 'Others'];
+                    foreach($all_cats as $index => $c):
+                ?>
+                    <label style="cursor: pointer; display:flex; align-items:center; gap:5px;"><input type="checkbox" name="category[]" value="<?php echo $c; ?>" <?php if(in_array($c, $filter_categories)) echo 'checked'; ?>> <?php echo $cat_en[$index]; ?></label>
+                <?php endforeach; ?>
+            </div>
+            <button type="submit" class="btn btn-primary" style="width: 100%; margin-top: 20px;">Apply Filters</button>
+        </form>
+    </div>
+</div>
+
 <script>
-// ================= ระบบดักจับการโดนแบนแบบ Real-time (เตะออกทันทีไม่ต้องรีเฟรช) =================
+// --- Sidebar Toggle สำหรับมือถือ ---
+function toggleSidebar() {
+    const sidebar = document.getElementById('sidebar');
+    const overlay = document.getElementById('mobileOverlay');
+    sidebar.classList.toggle('active');
+    overlay.style.display = sidebar.classList.contains('active') ? 'block' : 'none';
+}
+
+// --- Real-time Ban Check ---
 setInterval(function() {
-    fetch('check_ban_status.php')
-    .then(response => response.text())
-    .then(status => {
-        if (status.trim() === 'banned') {
-            window.location.href = 'login.php'; // เตะกลับไปหน้าล็อกอินทันที
-        }
-    })
-    .catch(error => console.error('Error checking ban status:', error));
-}, 3000); // เช็กทุกๆ 3 วินาที (หากโดนแบน ไม่เกิน 3 วินาที เด้งออกแน่นอน)
-// =========================================================================================
+    fetch('check_ban_status.php').then(r => r.text()).then(status => {
+        if (status.trim() === 'banned') window.location.href = 'login.php';
+    }).catch(e => console.error(e));
+}, 3000);
 
 const currentRole = '<?php echo $user_data['role']; ?>'; 
 
-// --- ระบบซูมรูปภาพและแกลเลอรี่ ---
+// --- Lightbox Gallery ---
 let currentLightboxImages = [];
 let currentLightboxIndex = 0;
 
@@ -347,48 +361,31 @@ function openLightbox(imageArray, startIndex) {
     updateLightboxImage();
     document.getElementById('lightboxModal').style.display = 'flex';
 }
-
-function closeLightbox() {
-    document.getElementById('lightboxModal').style.display = 'none';
-    currentLightboxImages = []; // เคลียร์ array เมื่อปิด
-}
-
+function closeLightbox() { document.getElementById('lightboxModal').style.display = 'none'; currentLightboxImages = []; }
 function changeLightboxImage(e, direction) {
-    e.stopPropagation(); // กันไม่ให้กดแล้ว Popup ปิดเอง
+    e.stopPropagation(); 
     currentLightboxIndex += direction;
-    
-    // วนลูปรูปภาพ (ถ้าสุดให้กลับไปรูปแรก/รูปสุดท้าย)
-    if (currentLightboxIndex >= currentLightboxImages.length) {
-        currentLightboxIndex = 0;
-    } else if (currentLightboxIndex < 0) {
-        currentLightboxIndex = currentLightboxImages.length - 1;
-    }
+    if (currentLightboxIndex >= currentLightboxImages.length) currentLightboxIndex = 0;
+    else if (currentLightboxIndex < 0) currentLightboxIndex = currentLightboxImages.length - 1;
     updateLightboxImage();
 }
-
 function updateLightboxImage() {
     if(currentLightboxImages.length > 0) {
         document.getElementById('lightboxImg').src = currentLightboxImages[currentLightboxIndex];
         document.getElementById('lightboxCounter').innerText = (currentLightboxIndex + 1) + " / " + currentLightboxImages.length;
-        
-        // ถ้ามีแค่ 1 รูป ให้ซ่อนปุ่มลูกศร
         let navs = document.querySelectorAll('.lightbox-nav');
-        if(currentLightboxImages.length <= 1) {
-            navs.forEach(nav => nav.style.display = 'none');
-        } else {
-            navs.forEach(nav => nav.style.display = 'flex');
-        }
+        if(currentLightboxImages.length <= 1) navs.forEach(nav => nav.style.display = 'none');
+        else navs.forEach(nav => nav.style.display = 'flex');
     }
 }
 
-// --- จัดการเปิด/ปิด Popup ต่างๆ ---
-function openFilterModal() { document.getElementById('filterSearchModal').style.display = 'block'; }
+// --- Modals ---
+function openFilterModal() { document.getElementById('filterSearchModal').style.display = 'flex'; }
 function closeFilterModal() { document.getElementById('filterSearchModal').style.display = 'none'; }
-function openBanModal() { document.getElementById('banModal').style.display = 'block'; }
+function openBanModal() { document.getElementById('banModal').style.display = 'flex'; }
 function closeBanModal() { document.getElementById('banModal').style.display = 'none'; }
 function closeProfileModal() { document.getElementById('profileModal').style.display = 'none'; }
 
-// ปิดเมื่อคลิกพื้นหลังดำ
 window.onclick = function(event) {
     let cModal = document.getElementById('commentModal');
     let pModal = document.getElementById('profileModal');
@@ -402,27 +399,23 @@ window.onclick = function(event) {
     if (event.target == lModal) closeLightbox();
 }
 
-// --- ฟังก์ชัน Profile และ ระบบแบน ---
+// --- Profile & Ban System ---
 function openProfileModal(userId) {
     fetch('get_profile.php?id=' + userId).then(r => r.json()).then(data => {
         document.getElementById('pm-img').src = data.profile_picture ? data.profile_picture : 'https://via.placeholder.com/100?text=U';
         document.getElementById('pm-name').innerText = data.username;
-        document.getElementById('pm-contact').innerText = data.contact_info ? data.contact_info : 'ไม่ได้ระบุข้อมูลติดต่อไว้...';
+        document.getElementById('pm-contact').innerText = data.contact_info ? data.contact_info : 'No contact info provided...';
 
         let banStatus = document.getElementById('pm-ban-status');
         if(data.is_banned == 1) {
-            let until = data.ban_until ? ' (ถึง ' + data.ban_until + ')' : ' (ถาวร)';
-            banStatus.innerText = '⚠️ ผู้ใช้นี้ถูกแบน' + until;
+            let until = data.ban_until ? ' (Until ' + data.ban_until + ')' : ' (Permanent)';
+            banStatus.innerText = '⚠️ Banned' + until;
             banStatus.style.display = 'block';
-        } else {
-            banStatus.style.display = 'none';
-        }
+        } else { banStatus.style.display = 'none'; }
 
         if(currentRole === 'admin') {
             document.getElementById('admin-ban-controls').style.display = 'block';
             document.getElementById('targetUserId').value = data.id;
-            document.getElementById('targetUserName').innerText = data.username;
-
             if(data.is_banned == 1) {
                 document.getElementById('btn-show-ban').style.display = 'none';
                 document.getElementById('btn-do-unban').style.display = 'inline-block';
@@ -431,97 +424,85 @@ function openProfileModal(userId) {
                 document.getElementById('btn-do-unban').style.display = 'none';
             }
         }
-        document.getElementById('profileModal').style.display = 'block';
+        document.getElementById('profileModal').style.display = 'flex';
     });
 }
 
 function submitBan() {
     let uid = document.getElementById('targetUserId').value;
     let formData = new FormData();
-    formData.append('user_id', uid);
-    formData.append('action', 'ban');
+    formData.append('user_id', uid); formData.append('action', 'ban');
     formData.append('category', document.getElementById('banCategory').value);
     formData.append('details', document.getElementById('banDetails').value);
     formData.append('duration', document.getElementById('banDuration').value);
-
     fetch('ban_user.php', { method: 'POST', body: formData }).then(r => r.text()).then(res => {
-        if(res === 'success') { alert('แบนผู้ใช้สำเร็จ'); closeBanModal(); openProfileModal(uid); }
+        if(res === 'success') { alert('User banned successfully'); window.location.reload(); }
     });
 }
 
 function unbanUser() {
-    if(!confirm('คุณแน่ใจหรือไม่ว่าต้องการปลดแบนผู้ใช้นี้?')) return;
+    if(!confirm('Are you sure you want to unban this user?')) return;
     let uid = document.getElementById('targetUserId').value;
     let formData = new FormData();
-    formData.append('user_id', uid);
-    formData.append('action', 'unban');
-
+    formData.append('user_id', uid); formData.append('action', 'unban');
     fetch('ban_user.php', { method: 'POST', body: formData }).then(r => r.text()).then(res => {
-        if(res === 'success') { alert('ปลดแบนสำเร็จ'); openProfileModal(uid); }
+        if(res === 'success') { alert('User unbanned successfully'); window.location.reload(); }
     });
 }
 
-// --- ฟังก์ชันคอมเมนต์ ---
+// --- Comments ---
 let replyingToId = null; 
 function openModal(postId) {
-    document.getElementById('commentModal').style.display = 'block';
+    document.getElementById('commentModal').style.display = 'flex';
     document.getElementById('modalPostId').value = postId;
     loadComments(postId);
 }
-function closeModal() {
-    document.getElementById('commentModal').style.display = 'none';
-    cancelReply();
-}
+function closeModal() { document.getElementById('commentModal').style.display = 'none'; cancelReply(); }
 function setReply(commentId, username) {
     replyingToId = commentId;
     let input = document.getElementById('commentText');
-    input.placeholder = "ตอบกลับ " + username + "...";
+    input.placeholder = "Replying to " + username + "...";
     input.focus();
 }
-function cancelReply() {
-    replyingToId = null;
-    document.getElementById('commentText').value = '';
-    document.getElementById('commentText').placeholder = "เขียนความคิดเห็น...";
-}
+function cancelReply() { replyingToId = null; document.getElementById('commentText').value = ''; document.getElementById('commentText').placeholder = "Write a comment..."; }
+
 function loadComments(postId) {
     let list = document.getElementById('commentList');
-    list.innerHTML = '<p style="text-align:center; color:gray;">กำลังโหลด...</p>';
-    fetch('get_comments.php?post_id=' + postId)
-    .then(response => response.json())
-    .then(data => {
+    list.innerHTML = '<p style="text-align:center; color:gray;">Loading...</p>';
+    fetch('get_comments.php?post_id=' + postId).then(r => r.json()).then(data => {
         list.innerHTML = '';
-        if(data.length === 0) { list.innerHTML = '<p style="text-align:center; color:gray;">ยังไม่มีความคิดเห็น</p>'; return; }
+        if(data.length === 0) { list.innerHTML = '<p style="text-align:center; color:gray;">No comments yet</p>'; return; }
         let mainComments = data.filter(c => c.parent_id === null);
         let replies = data.filter(c => c.parent_id !== null);
-        mainComments.forEach(comment => {
-            let img = comment.profile_picture ? comment.profile_picture : 'https://via.placeholder.com/35?text=U';
+        mainComments.forEach(c => {
+            let img = c.profile_picture ? c.profile_picture : 'https://via.placeholder.com/35?text=U';
             list.innerHTML += `
-                <div class="comment-item" style="margin-bottom: 5px;">
-                    <img src="${img}" class="comment-avatar" style="cursor:pointer;" onclick="openProfileModal(${comment.user_id})">
+                <div style="margin-bottom: 5px; display:flex; gap:10px;">
+                    <img src="${img}" style="width:35px; height:35px; border-radius:50%; cursor:pointer;" onclick="openProfileModal(${c.user_id})">
                     <div style="flex-grow: 1;">
-                        <div class="comment-box" style="display:inline-block;">
-                            <p class="comment-name" style="cursor:pointer; color:#0084ff;" onclick="openProfileModal(${comment.user_id})">${comment.username}</p>
-                            <p class="comment-text">${comment.comment_text}</p>
+                        <div style="background:#f0f2f5; padding:8px 12px; border-radius:12px; display:inline-block;">
+                            <strong style="cursor:pointer; color:var(--primary); font-size:14px;" onclick="openProfileModal(${c.user_id})">${c.username}</strong>
+                            <p style="margin:2px 0 0 0; font-size:14px;">${c.comment_text}</p>
                         </div>
                         <div style="margin-top: 3px; margin-left: 10px;">
-                            <span style="font-size:12px; cursor:pointer; font-weight:bold; color:#65676b;" onclick="setReply(${comment.id}, '${comment.username}')">ตอบกลับ</span>
+                            <span style="font-size:12px; cursor:pointer; font-weight:bold; color:var(--text-muted);" onclick="setReply(${c.id}, '${c.username}')">Reply</span>
                         </div>
                     </div>
                 </div>
-                <div id="replies-${comment.id}" style="margin-left: 45px; margin-bottom: 15px;"></div>
+                <div id="replies-${c.id}" style="margin-left: 45px; margin-bottom: 15px;"></div>
             `;
         });
-        replies.forEach(reply => {
-            let replyBox = document.getElementById('replies-' + reply.parent_id);
+        replies.forEach(r => {
+            let replyBox = document.getElementById('replies-' + r.parent_id);
             if(replyBox) {
-                let img = reply.profile_picture ? reply.profile_picture : 'https://via.placeholder.com/35?text=U';
+                let img = r.profile_picture ? r.profile_picture : 'https://via.placeholder.com/35?text=U';
                 replyBox.innerHTML += `
-                    <div class="comment-item" style="margin-bottom: 5px; margin-top: 5px;">
-                        <img src="${img}" class="comment-avatar" style="width:25px; height:25px; cursor:pointer;" onclick="openProfileModal(${reply.user_id})">
+                    <div style="margin-bottom: 5px; margin-top: 5px; display:flex; gap:8px;">
+                        <img src="${img}" style="width:25px; height:25px; border-radius:50%; cursor:pointer;" onclick="openProfileModal(${r.user_id})">
                         <div>
-                            <div class="comment-box" style="padding: 5px 10px; display:inline-block;">
-                                <p class="comment-name" style="cursor:pointer; color:#0084ff; font-size:12px;" onclick="openProfileModal(${reply.user_id})">${reply.username}</p>
-                                <p class="comment-text" style="font-size:13px;">${reply.comment_text}</p>
+                            <div style="background:#f0f2f5; padding:5px 10px; border-radius:12px; display:inline-block;">
+                                <strong style="cursor:pointer; color:var(--primary); font-size:12px;" onclick="openProfileModal(${r.user_id})">${r.username}</strong>
+                                <p style="margin:2px 0 0 0; font-size:13px;">${r.comment_text}</p>
                             </div>
                         </div>
                     </div>
@@ -531,6 +512,7 @@ function loadComments(postId) {
         list.scrollTop = list.scrollHeight;
     });
 }
+
 function submitComment() {
     let postId = document.getElementById('modalPostId').value;
     let textInput = document.getElementById('commentText');
@@ -540,11 +522,9 @@ function submitComment() {
     formData.append('post_id', postId);
     formData.append('comment_text', text);
     if(replyingToId !== null) formData.append('parent_id', replyingToId);
-    fetch('add_comment.php', { method: 'POST', body: formData })
-    .then(response => response.text())
-    .then(result => {
+    fetch('add_comment.php', { method: 'POST', body: formData }).then(r => r.text()).then(result => {
         if(result === 'success') { cancelReply(); loadComments(postId); } 
-        else { alert('เกิดข้อผิดพลาดในการส่งข้อความ'); }
+        else { alert('Error submitting comment'); }
     });
 }
 function handleEnter(e) { if(e.key === 'Enter') submitComment(); }
