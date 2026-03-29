@@ -18,7 +18,6 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
             $user = $result->fetch_assoc();
             if (password_verify($password, $user['password'])) {
                 
-                // ================= ระบบเช็กสถานะแบน =================
                 if ($user['is_banned'] == 1) {
                     if ($user['ban_until'] !== null && strtotime($user['ban_until']) <= time()) {
                         $unban_stmt = $conn->prepare("UPDATE users SET is_banned=0, ban_category=NULL, ban_details=NULL, ban_until=NULL WHERE id=?");
@@ -31,16 +30,12 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
                     }
                 }
 
-                // ================= ระบบบันทึก Log =================
-                // 1. ลบ Log ที่เก่าเกิน 1 เดือนทิ้งอัตโนมัติ (ระบบเคลียร์ขยะ)
                 $conn->query("DELETE FROM login_logs WHERE login_time < DATE_SUB(NOW(), INTERVAL 1 MONTH)");
                 
-                // 2. บันทึกประวัติการเข้าสู่ระบบครั้งนี้
                 $log_stmt = $conn->prepare("INSERT INTO login_logs (user_id) VALUES (?)");
                 $log_stmt->bind_param("i", $user['id']);
                 $log_stmt->execute();
 
-                // สร้าง Session และเข้าสู่ระบบ
                 $_SESSION['user_id'] = $user['id'];
                 $_SESSION['username'] = $user['username'];
                 $_SESSION['role'] = $user['role'];
@@ -54,16 +49,57 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
     } else { $message = "<span style='color: red;'>กรุณากรอกข้อมูลให้ครบถ้วน</span>"; }
 }
 ?>
-<!DOCTYPE html><html lang="th"><head><meta charset="UTF-8"><title>เข้าสู่ระบบ</title><link rel="stylesheet" href="style.css"></head>
-<body style="display: flex; justify-content: center; align-items: center; height: 100vh; margin: 0;">
-<div class="container" style="text-align: center; width: 300px;">
-    <h2>เข้าสู่ระบบ</h2>
-    <?php if($message != "") echo "<p>$message</p>"; ?>
+<!DOCTYPE html>
+<html lang="th">
+<head>
+    <meta charset="UTF-8">
+    <title>เข้าสู่ระบบ</title>
+    <link rel="stylesheet" href="style.css">
+    <style>
+        .input-group { position: relative; width: 100%; margin-top: 10px; }
+        .input-group input { width: 100%; padding: 10px 40px 10px 10px; box-sizing: border-box; border: 1px solid #ccc; border-radius: 4px; font-family: inherit; }
+        .eye-btn { position: absolute; right: 10px; top: 50%; transform: translateY(-50%); cursor: pointer; user-select: none; color: gray; font-size: 18px; }
+        .eye-btn:hover { color: #333; }
+        
+        /* ================= ซ่อนปุ่มตาดั้งเดิมของ Browser ================= */
+        input::-ms-reveal,
+        input::-ms-clear { display: none; }
+        input[type="password"]::-webkit-contacts-auto-fill-button, 
+        input[type="password"]::-webkit-credentials-auto-fill-button { visibility: hidden; pointer-events: none; position: absolute; right: 0; }
+        /* ========================================================== */
+    </style>
+</head>
+<body style="display: flex; justify-content: center; align-items: center; height: 100vh; margin: 0; background-color: #f4f4f9;">
+<div class="container" style="text-align: center; width: 320px; background: white; padding: 30px; border-radius: 8px; box-shadow: 0 4px 8px rgba(0,0,0,0.1);">
+    <h2 style="margin-top: 0; color: #333;">เข้าสู่ระบบ</h2>
+    <?php if($message != "") echo "<p style='font-size:14px;'>$message</p>"; ?>
+    
     <form method="POST" action="">
-        <input type="text" name="username" placeholder="ชื่อผู้ใช้งาน (Username)" required>
-        <input type="password" name="password" placeholder="รหัสผ่าน (Password)" required>
-        <button type="submit" class="search-btn" style="width: 100%; margin-top: 10px;">เข้าสู่ระบบ</button>
+        <div class="input-group">
+            <input type="text" name="username" placeholder="ชื่อผู้ใช้งาน (Username)" required>
+        </div>
+        
+        <div class="input-group">
+            <input type="password" id="loginPassword" name="password" placeholder="รหัสผ่าน (Password)" required>
+            <span class="eye-btn" onclick="togglePassword('loginPassword', this)">👁️</span>
+        </div>
+
+        <button type="submit" class="search-btn" style="width: 100%; margin-top: 20px; padding: 12px; border-radius: 4px;">เข้าสู่ระบบ</button>
     </form>
-    <p style="font-size: 14px;">ยังไม่มีบัญชี? <a href="register.php">สมัครสมาชิกที่นี่</a></p>
+    <p style="font-size: 14px; margin-top: 20px;">ยังไม่มีบัญชี? <a href="register.php" style="color: #0084ff; text-decoration: none; font-weight: bold;">สมัครสมาชิกที่นี่</a></p>
 </div>
-</body></html>
+
+<script>
+function togglePassword(inputId, icon) {
+    let input = document.getElementById(inputId);
+    if (input.type === "password") {
+        input.type = "text";
+        icon.innerText = "🙈"; 
+    } else {
+        input.type = "password";
+        icon.innerText = "👁️"; 
+    }
+}
+</script>
+</body>
+</html>
