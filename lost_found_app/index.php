@@ -9,7 +9,7 @@ if (!isset($_SESSION['user_id'])) {
 
 $user_id = $_SESSION['user_id'];
 
-// ดึงข้อมูลผู้ใช้งาน (เพิ่มการดึง is_banned และ ban_until มาเช็กด้วย)
+// ดึงข้อมูลผู้ใช้งาน
 $sql_user = "SELECT username, role, profile_picture, is_banned, ban_until FROM users WHERE id = ?";
 $stmt_user = $conn->prepare($sql_user);
 $stmt_user->bind_param("i", $user_id);
@@ -17,22 +17,19 @@ $stmt_user->execute();
 $user_data = $stmt_user->get_result()->fetch_assoc();
 $stmt_user->close();
 
-// ================= ระบบดักจับการโดนแบนแบบ Real-time =================
+// ดักจับฝั่ง PHP (เผื่อรีเฟรชหน้าเว็บ)
 if ($user_data['is_banned'] == 1) {
     if ($user_data['ban_until'] !== null && strtotime($user_data['ban_until']) <= time()) {
-        // ถ้าระยะเวลาแบนหมดแล้ว ให้ปลดแบนอัตโนมัติ
         $unban_stmt = $conn->prepare("UPDATE users SET is_banned=0, ban_category=NULL, ban_details=NULL, ban_until=NULL WHERE id=?");
         $unban_stmt->bind_param("i", $user_id);
         $unban_stmt->execute();
         $unban_stmt->close();
     } else {
-        // ถ้ายังโดนแบนอยู่ ให้เตะออกจากระบบทันที
-        session_destroy(); // ทำลาย Session
-        header("Location: login.php"); // เด้งกลับหน้าล็อกอิน
+        session_destroy();
+        header("Location: login.php");
         exit();
     }
 }
-// ==============================================================
 
 $my_profile_image = !empty($user_data['profile_picture']) ? $user_data['profile_picture'] : 'https://via.placeholder.com/40?text=U';
 
@@ -325,6 +322,19 @@ $result_posts = $stmt_posts->get_result();
 </div>
 
 <script>
+// ================= ระบบดักจับการโดนแบนแบบ Real-time (เตะออกทันทีไม่ต้องรีเฟรช) =================
+setInterval(function() {
+    fetch('check_ban_status.php')
+    .then(response => response.text())
+    .then(status => {
+        if (status.trim() === 'banned') {
+            window.location.href = 'login.php'; // เตะกลับไปหน้าล็อกอินทันที
+        }
+    })
+    .catch(error => console.error('Error checking ban status:', error));
+}, 3000); // เช็กทุกๆ 3 วินาที (หากโดนแบน ไม่เกิน 3 วินาที เด้งออกแน่นอน)
+// =========================================================================================
+
 const currentRole = '<?php echo $user_data['role']; ?>'; 
 
 // --- ระบบซูมรูปภาพและแกลเลอรี่ ---
@@ -435,7 +445,7 @@ function submitBan() {
     formData.append('duration', document.getElementById('banDuration').value);
 
     fetch('ban_user.php', { method: 'POST', body: formData }).then(r => r.text()).then(res => {
-        if(res === 'success') { alert('แบนผู้ใช้สำเร็จ'); closeBanModal(); openProfileModal(uid); window.location.reload(); }
+        if(res === 'success') { alert('แบนผู้ใช้สำเร็จ'); closeBanModal(); openProfileModal(uid); }
     });
 }
 
@@ -447,7 +457,7 @@ function unbanUser() {
     formData.append('action', 'unban');
 
     fetch('ban_user.php', { method: 'POST', body: formData }).then(r => r.text()).then(res => {
-        if(res === 'success') { alert('ปลดแบนสำเร็จ'); openProfileModal(uid); window.location.reload(); }
+        if(res === 'success') { alert('ปลดแบนสำเร็จ'); openProfileModal(uid); }
     });
 }
 
