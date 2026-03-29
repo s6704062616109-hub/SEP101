@@ -9,13 +9,30 @@ if (!isset($_SESSION['user_id'])) {
 
 $user_id = $_SESSION['user_id'];
 
-// ดึงข้อมูลผู้ใช้งาน
-$sql_user = "SELECT username, role, profile_picture FROM users WHERE id = ?";
+// ดึงข้อมูลผู้ใช้งาน (เพิ่มการดึง is_banned และ ban_until มาเช็กด้วย)
+$sql_user = "SELECT username, role, profile_picture, is_banned, ban_until FROM users WHERE id = ?";
 $stmt_user = $conn->prepare($sql_user);
 $stmt_user->bind_param("i", $user_id);
 $stmt_user->execute();
 $user_data = $stmt_user->get_result()->fetch_assoc();
 $stmt_user->close();
+
+// ================= ระบบดักจับการโดนแบนแบบ Real-time =================
+if ($user_data['is_banned'] == 1) {
+    if ($user_data['ban_until'] !== null && strtotime($user_data['ban_until']) <= time()) {
+        // ถ้าระยะเวลาแบนหมดแล้ว ให้ปลดแบนอัตโนมัติ
+        $unban_stmt = $conn->prepare("UPDATE users SET is_banned=0, ban_category=NULL, ban_details=NULL, ban_until=NULL WHERE id=?");
+        $unban_stmt->bind_param("i", $user_id);
+        $unban_stmt->execute();
+        $unban_stmt->close();
+    } else {
+        // ถ้ายังโดนแบนอยู่ ให้เตะออกจากระบบทันที
+        session_destroy(); // ทำลาย Session
+        header("Location: login.php"); // เด้งกลับหน้าล็อกอิน
+        exit();
+    }
+}
+// ==============================================================
 
 $my_profile_image = !empty($user_data['profile_picture']) ? $user_data['profile_picture'] : 'https://via.placeholder.com/40?text=U';
 
@@ -354,7 +371,7 @@ function updateLightboxImage() {
     }
 }
 
-// --- จัดการเปิด/ปิด Popup อื่นๆ ---
+// --- จัดการเปิด/ปิด Popup ต่างๆ ---
 function openFilterModal() { document.getElementById('filterSearchModal').style.display = 'block'; }
 function closeFilterModal() { document.getElementById('filterSearchModal').style.display = 'none'; }
 function openBanModal() { document.getElementById('banModal').style.display = 'block'; }
