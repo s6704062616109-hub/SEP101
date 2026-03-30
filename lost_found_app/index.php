@@ -17,7 +17,6 @@ $stmt_user->execute();
 $user_data = $stmt_user->get_result()->fetch_assoc();
 $stmt_user->close();
 
-// ดักจับฝั่ง PHP (เผื่อรีเฟรชหน้าเว็บ)
 if ($user_data['is_banned'] == 1) {
     if ($user_data['ban_until'] !== null && strtotime($user_data['ban_until']) <= time()) {
         $unban_stmt = $conn->prepare("UPDATE users SET is_banned=0, ban_category=NULL, ban_details=NULL, ban_until=NULL WHERE id=?");
@@ -109,10 +108,13 @@ $result_posts = $stmt_posts->get_result();
             <button type="button" class="btn-header btn-header-secondary" onclick="openFilterModal()">⚙️ Filter</button>
         </form>
         
-        <a href="profile.php" class="header-user-menu">
-            <img src="<?php echo htmlspecialchars($my_profile_image); ?>" class="header-profile-img" alt="Profile">
-            <span><?php echo htmlspecialchars($user_data['username']); ?></span>
-        </a>
+        <div class="header-right-group">
+            <a href="create_post.php" class="header-create-btn" title="Create Post">➕</a>
+            <a href="profile.php" class="header-user-menu">
+                <img src="<?php echo htmlspecialchars($my_profile_image); ?>" class="header-profile-img" alt="Profile">
+                <span class="header-username"><?php echo htmlspecialchars($user_data['username']); ?></span>
+            </a>
+        </div>
     </header>
 
     <div class="overlay" id="mobileOverlay" onclick="toggleSidebar()"></div>
@@ -121,11 +123,9 @@ $result_posts = $stmt_posts->get_result();
         <div class="sidebar-menu">
             <div class="menu-label">Discover</div>
             <a href="index.php" class="menu-item active"><span class="icon">🏠</span> Home</a>
-            <a href="#" class="menu-item"><span class="icon">🧭</span> Explore</a>
             
             <div class="menu-label" style="margin-top: 20px;">My Space</div>
             <a href="my_posts.php" class="menu-item"><span class="icon">📁</span> My Posts</a>
-            <a href="#" class="menu-item"><span class="icon">⏱️</span> History</a>
             
             <?php if ($user_data['role'] == 'admin'): ?>
                 <div class="menu-label" style="margin-top: 20px; color:#ff6b6b;">Admin Only</div>
@@ -145,9 +145,6 @@ $result_posts = $stmt_posts->get_result();
             
             <div class="page-title-bar">
                 <h1 class="page-heading">Discover Feed</h1>
-                <div class="action-buttons-group">
-                    <a href="create_post.php" class="btn btn-success">+ Create Post</a>
-                </div>
             </div>
 
             <?php if ($search_text !== '' || $filter_type !== '' || $filter_status !== '' || !empty($filter_categories)): ?>
@@ -157,7 +154,6 @@ $result_posts = $stmt_posts->get_result();
             <?php if ($result_posts->num_rows > 0): ?>
                 <?php while($post = $result_posts->fetch_assoc()): ?>
                     <div class="post-card">
-                        
                         <div class="post-header">
                             <div style="display: flex; align-items: center; gap: 12px;">
                                 <?php $author_img = !empty($post['profile_picture']) ? $post['profile_picture'] : 'https://via.placeholder.com/45?text=U'; ?>
@@ -181,10 +177,22 @@ $result_posts = $stmt_posts->get_result();
                             <?php endif; ?>
 
                             <?php if ($post['post_type'] == 'lost'): ?>
-                                <span class="badge badge-danger">🔍 Lost Item</span>
+                                <span class="badge" style="background-color: #dc3545;">🔍 Lost Item</span>
                             <?php else: ?>
-                                <span class="badge badge-primary">💡 Found Item</span>
+                                <span class="badge" style="background-color: #0084ff;">💡 Found Item</span>
                             <?php endif; ?>
+
+                            <?php 
+                                $categories = !empty($post['item_category']) ? explode(",", $post['item_category']) : ['อื่นๆ'];
+                                foreach($categories as $cat): 
+                                    $cat = trim($cat);
+                                    if(!empty($cat)):
+                            ?>
+                                <span class="badge" style="background-color: #6c757d;">🏷️ <?php echo htmlspecialchars($cat); ?></span>
+                            <?php 
+                                    endif;
+                                endforeach; 
+                            ?>
 
                             <h3 class="post-title"><?php echo htmlspecialchars($post['title']); ?></h3>
                             <p class="post-desc"><?php echo nl2br(htmlspecialchars($post['description'])); ?></p>
@@ -334,7 +342,6 @@ $result_posts = $stmt_posts->get_result();
 </div>
 
 <script>
-// --- Sidebar Toggle สำหรับมือถือ ---
 function toggleSidebar() {
     const sidebar = document.getElementById('sidebar');
     const overlay = document.getElementById('mobileOverlay');
@@ -342,7 +349,6 @@ function toggleSidebar() {
     overlay.style.display = sidebar.classList.contains('active') ? 'block' : 'none';
 }
 
-// --- Real-time Ban Check ---
 setInterval(function() {
     fetch('check_ban_status.php').then(r => r.text()).then(status => {
         if (status.trim() === 'banned') window.location.href = 'login.php';
@@ -351,7 +357,6 @@ setInterval(function() {
 
 const currentRole = '<?php echo $user_data['role']; ?>'; 
 
-// --- Lightbox Gallery ---
 let currentLightboxImages = [];
 let currentLightboxIndex = 0;
 
@@ -379,7 +384,6 @@ function updateLightboxImage() {
     }
 }
 
-// --- Modals ---
 function openFilterModal() { document.getElementById('filterSearchModal').style.display = 'flex'; }
 function closeFilterModal() { document.getElementById('filterSearchModal').style.display = 'none'; }
 function openBanModal() { document.getElementById('banModal').style.display = 'flex'; }
@@ -399,7 +403,6 @@ window.onclick = function(event) {
     if (event.target == lModal) closeLightbox();
 }
 
-// --- Profile & Ban System ---
 function openProfileModal(userId) {
     fetch('get_profile.php?id=' + userId).then(r => r.json()).then(data => {
         document.getElementById('pm-img').src = data.profile_picture ? data.profile_picture : 'https://via.placeholder.com/100?text=U';
@@ -450,7 +453,6 @@ function unbanUser() {
     });
 }
 
-// --- Comments ---
 let replyingToId = null; 
 function openModal(postId) {
     document.getElementById('commentModal').style.display = 'flex';
