@@ -10,9 +10,11 @@ if (!isset($_SESSION['user_id'])) {
 $user_id = $_SESSION['user_id'];
 $message = "";
 
-// ส่วนบันทึกข้อมูล (เหมือนเดิม)
+// ส่วนบันทึกข้อมูล
 if ($_SERVER["REQUEST_METHOD"] == "POST") {
-    $contact_info = $_POST['contact_info'];
+    // ป้องกัน XSS และ Code Injection
+    $contact_info = htmlspecialchars(strip_tags(trim($_POST['contact_info'])), ENT_QUOTES, 'UTF-8');
+    
     $profile_picture_path = "";
 
     if (isset($_FILES['profile_picture']) && $_FILES['profile_picture']['error'] == 0) {
@@ -22,8 +24,8 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
             $target_file = "uploads/profiles/" . $new_filename;
             if (move_uploaded_file($_FILES['profile_picture']['tmp_name'], $target_file)) {
                 $profile_picture_path = $target_file;
-            } else { $message = "<span style='color: red;'>เกิดข้อผิดพลาดในการอัปโหลดรูปภาพ</span>"; }
-        } else { $message = "<span style='color: red;'>อัปโหลดได้เฉพาะไฟล์ JPG, PNG และ GIF เท่านั้น</span>"; }
+            } else { $message = "<span style='color: #ef4444;'>Error uploading image.</span>"; }
+        } else { $message = "<span style='color: #ef4444;'>Only JPG, PNG, and GIF allowed.</span>"; }
     }
 
     if ($profile_picture_path != "") {
@@ -33,83 +35,114 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
         $stmt = $conn->prepare("UPDATE users SET contact_info = ? WHERE id = ?");
         $stmt->bind_param("si", $contact_info, $user_id);
     }
-    if ($stmt->execute()) { $message = "<span style='color: green;'>บันทึกข้อมูลโปรไฟล์สำเร็จ!</span>"; }
+    if ($stmt->execute()) { $message = "<span style='color: #22c55e;'>Profile updated successfully!</span>"; }
     $stmt->close();
 }
 
-// ส่วนดึงข้อมูลมาแสดง (เพิ่มการดึง role มาด้วยเพื่อเช็กสิทธิ์)
-$sql = "SELECT username, profile_picture, contact_info, role FROM users WHERE id = ?";
+$sql = "SELECT username, profile_picture, contact_info, role, is_banned FROM users WHERE id = ?";
 $stmt = $conn->prepare($sql);
 $stmt->bind_param("i", $user_id);
 $stmt->execute();
 $user_data = $stmt->get_result()->fetch_assoc();
 $stmt->close();
+
+if ($user_data['is_banned'] == 1) {
+    session_destroy();
+    header("Location: login.php");
+    exit();
+}
+
+$my_profile_image = !empty($user_data['profile_picture']) ? $user_data['profile_picture'] : 'https://via.placeholder.com/40?text=U';
 ?>
 
 <!DOCTYPE html>
-<html lang="th">
+<html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>โปรไฟล์ของฉัน</title>
-    <link rel="stylesheet" href="style.css">
-    <style>
-        .profile-container { background: white; padding: 30px; border-radius: 8px; box-shadow: 0 4px 8px rgba(0,0,0,0.1); max-width: 500px; margin: auto; text-align: center; position: relative; }
-        .profile-img { width: 150px; height: 150px; border-radius: 50%; object-fit: cover; border: 3px solid #007bff; margin-bottom: 15px; }
-        input[type="file"], textarea { width: 100%; padding: 10px; margin: 10px 0; border: 1px solid #ccc; border-radius: 4px; box-sizing: border-box; }
-        button[type="submit"] { background-color: #007bff; color: white; padding: 10px 20px; border: none; border-radius: 4px; cursor: pointer; font-size: 16px; width: 100%; margin-bottom: 20px; }
-        .bottom-actions { display: flex; justify-content: space-between; align-items: center; border-top: 1px solid #eee; padding-top: 15px; }
-    </style>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Profile Settings - Lost & Found App</title>
+    <link rel="stylesheet" href="style.css?v=<?php echo time(); ?>">
 </head>
 <body>
 
-<div class="profile-container">
-    <?php if ($user_data['role'] == 'admin'): ?>
-        <button onclick="openAdminMenu()" style="position: absolute; right: 20px; top: 20px; background: none; border: none; font-size: 28px; cursor: pointer; color: #333;" title="เมนูผู้ดูแลระบบ">☰</button>
-    <?php endif; ?>
-
-    <h2>โปรไฟล์ของ <?php echo htmlspecialchars($user_data['username']); ?></h2>
-    <?php if($message != "") echo "<p>$message</p>"; ?>
-
-    <?php if (!empty($user_data['profile_picture'])): ?>
-        <img src="<?php echo htmlspecialchars($user_data['profile_picture']); ?>" class="profile-img">
-    <?php else: ?>
-        <img src="https://via.placeholder.com/150?text=U" class="profile-img">
-    <?php endif; ?>
-
-    <form method="POST" action="" enctype="multipart/form-data">
-        <div style="text-align: left;"><label>เปลี่ยนรูปโปรไฟล์:</label><input type="file" name="profile_picture" accept="image/png, image/jpeg, image/gif"></div>
-        <div style="text-align: left;"><label>ข้อมูลติดต่อ:</label><textarea name="contact_info" rows="4"><?php echo htmlspecialchars($user_data['contact_info'] ?? ''); ?></textarea></div>
-        <button type="submit">บันทึกข้อมูล</button>
-    </form>
+<div class="app-container">
     
-    <div class="bottom-actions">
-        <a href="index.php" style="text-decoration: none; color: gray;">← กลับไปหน้าแรก</a>
-        <a href="logout.php" style="color: white; background-color: #dc3545; padding: 8px 15px; text-decoration: none; border-radius: 4px;">ออกจากระบบ</a>
-    </div>
-</div>
+    <header class="top-bar">
+        <div class="header-logo-group">
+            <button class="menu-toggle" onclick="toggleSidebar()">☰</button>
+            <a href="index.php" class="header-logo">Lost & Found</a>
+        </div>
+        
+        <form method="GET" action="index.php" class="header-search-form">
+            <input type="text" name="q" class="search-input" placeholder="Search items, locations...">
+            <button type="submit" class="btn-header btn-header-primary">Search</button>
+        </form>
+        
+        <div class="header-right-group">
+            <a href="create_post.php" class="header-create-btn" title="Create Post">➕</a>
+            <a href="profile.php" class="header-user-menu">
+                <img src="<?php echo htmlspecialchars($my_profile_image); ?>" class="header-profile-img" alt="Profile">
+                <span class="header-username"><?php echo htmlspecialchars($user_data['username']); ?></span>
+            </a>
+        </div>
+    </header>
 
-<?php if ($user_data['role'] == 'admin'): ?>
-<div id="adminMenuModal" class="modal" style="z-index: 3000;">
-    <div class="modal-content" style="max-width: 300px; text-align: center;">
-        <span class="close-btn" onclick="closeAdminMenu()">&times;</span>
-        <h3 style="margin-top: 0; color: #333;">🛠️ เมนูผู้ดูแลระบบ</h3>
-        <hr style="border: 0; border-top: 1px solid #eee; margin-bottom: 20px;">
-        
-        <a href="search_users.php" class="search-btn" style="display: block; text-decoration: none; margin-bottom: 15px; padding: 12px; border-radius: 8px;">👥 ค้นหารายชื่อผู้ใช้</a>
-        
-        <a href="logs.php" class="search-btn" style="display: block; text-decoration: none; background-color: #17a2b8; padding: 12px; border-radius: 8px;">📜 ประวัติการเข้าใช้งาน (Log)</a>
-    </div>
+    <div class="overlay" id="mobileOverlay" onclick="toggleSidebar()"></div>
+
+    <aside class="sidebar" id="sidebar">
+        <div class="sidebar-menu">
+            <div class="menu-label">Discover</div>
+            <a href="index.php" class="menu-item"><span class="icon">🏠</span> Home</a>
+            
+            <div class="menu-label" style="margin-top: 20px;">My Space</div>
+            <a href="my_posts.php" class="menu-item"><span class="icon">📁</span> My Posts</a>
+            
+            <?php if ($user_data['role'] == 'admin'): ?>
+                <div class="menu-label" style="margin-top: 20px; color:#ef4444;">Admin Only</div>
+                <a href="search_users.php" class="menu-item" style="color:#ef4444;"><span class="icon">⚙️</span> Backend (Admin)</a>
+                <a href="logs.php" class="menu-item" style="color:#ef4444;"><span class="icon">📜</span> System Logs</a>
+            <?php endif; ?>
+        </div>
+        <div class="sidebar-footer">
+            <a href="profile.php" class="menu-item active"><span class="icon">👤</span> Settings</a>
+            <a href="logout.php" class="menu-item" style="color: #ef4444;"><span class="icon">🚪</span> Sign Out</a>
+        </div>
+    </aside>
+
+    <main class="main-content">
+        <div class="content-wrapper" style="display: flex; justify-content: center; padding-top: 40px;">
+            
+            <div class="post-card" style="width: 100%; max-width: 500px; text-align: center;">
+                <h2 style="margin-top: 0;">Profile Settings</h2>
+                <p style="color: var(--text-muted); margin-bottom: 20px;">@<?php echo htmlspecialchars($user_data['username']); ?></p>
+                
+                <?php if($message != "") echo "<p style='font-weight:bold; margin-bottom: 15px;'>$message</p>"; ?>
+
+                <img src="<?php echo htmlspecialchars($my_profile_image); ?>" style="width: 120px; height: 120px; border-radius: 50%; object-fit: cover; border: 3px solid var(--primary); margin-bottom: 20px;">
+
+                <form method="POST" action="" enctype="multipart/form-data" style="text-align: left;">
+                    <label style="font-weight: bold; color: var(--text-muted); display: block; margin-bottom: 8px;">Change Profile Picture:</label>
+                    <input type="file" name="profile_picture" accept="image/png, image/jpeg, image/gif" style="width: 100%; padding: 10px; border-radius: 8px; margin-bottom: 20px;">
+
+                    <label style="font-weight: bold; color: var(--text-muted); display: block; margin-bottom: 8px;">Contact Info:</label>
+                    <textarea name="contact_info" rows="4" style="width: 100%; padding: 12px; border-radius: 8px; margin-bottom: 20px; font-family: inherit; resize: vertical;" placeholder="Phone number, Line ID, Facebook..."><?php echo htmlspecialchars($user_data['contact_info'] ?? ''); ?></textarea>
+                    
+                    <button type="submit" class="btn btn-primary" style="width: 100%; padding: 14px; font-size: 16px;">Save Changes</button>
+                </form>
+            </div>
+
+        </div>
+    </main>
 </div>
 
 <script>
-    function openAdminMenu() { document.getElementById('adminMenuModal').style.display = 'block'; }
-    function closeAdminMenu() { document.getElementById('adminMenuModal').style.display = 'none'; }
-    window.onclick = function(event) {
-        let modal = document.getElementById('adminMenuModal');
-        if (event.target == modal) closeAdminMenu();
-    }
+function toggleSidebar() {
+    const sidebar = document.getElementById('sidebar');
+    const overlay = document.getElementById('mobileOverlay');
+    sidebar.classList.toggle('active');
+    overlay.style.display = sidebar.classList.contains('active') ? 'block' : 'none';
+}
 </script>
-<?php endif; ?>
 
 </body>
 </html>
