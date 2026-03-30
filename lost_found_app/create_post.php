@@ -1,25 +1,32 @@
 <?php
 session_start();
 require 'db.php';
+
 if (!isset($_SESSION['user_id'])) { header("Location: login.php"); exit(); }
+
+$user_id = $_SESSION['user_id'];
+$sql_user = "SELECT username, role, profile_picture FROM users WHERE id = ?";
+$stmt_user = $conn->prepare($sql_user);
+$stmt_user->bind_param("i", $user_id);
+$stmt_user->execute();
+$user_data = $stmt_user->get_result()->fetch_assoc();
+$stmt_user->close();
+
+$my_profile_image = !empty($user_data['profile_picture']) ? $user_data['profile_picture'] : 'https://via.placeholder.com/40?text=U';
 $message = "";
 
 if ($_SERVER["REQUEST_METHOD"] == "POST") {
     $title = $_POST['title'];
     $description = $_POST['description'];
     $post_type = $_POST['post_type']; 
-    $item_category_arr = isset($_POST['item_category']) ? $_POST['item_category'] : ['อื่นๆ'];
+    $item_category_arr = isset($_POST['item_category']) ? $_POST['item_category'] : ['Others'];
     $item_category = implode(", ", $item_category_arr); 
-    $user_id = $_SESSION['user_id'];
     
-    // ================= ระบบอัปโหลดรูปภาพ (จำกัด 10 รูป) =================
     $image_paths = []; 
     if (isset($_FILES['post_images']) && !empty($_FILES['post_images']['name'][0])) {
         $file_count = count($_FILES['post_images']['name']);
-        
-        // เช็กฝั่งเซิร์ฟเวอร์ ถ้าเกิน 10 รูปให้บล็อกทันที
         if ($file_count > 10) {
-            $message = "<span style='color: red;'>❌ อัปโหลดรูปภาพได้สูงสุดไม่เกิน 10 รูปเท่านั้นครับ</span>";
+            $message = "<span style='color: #ef4444;'>❌ Maximum 10 images allowed.</span>";
         } else {
             $allowed_types = ['image/jpeg', 'image/png', 'image/gif'];
             $target_dir = "uploads/posts/";
@@ -40,83 +47,119 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
         }
     }
     
-    // ถ้าไม่มี error เรื่องจำนวนรูป ให้เซฟลงฐานข้อมูล
     if (empty($message) && !empty($title) && !empty($description)) {
         $image_path_string = !empty($image_paths) ? implode(",", $image_paths) : NULL;
         $sql = "INSERT INTO posts (user_id, post_type, item_category, title, description, image_url) VALUES (?, ?, ?, ?, ?, ?)";
         $stmt = $conn->prepare($sql);
         $stmt->bind_param("isssss", $user_id, $post_type, $item_category, $title, $description, $image_path_string);
-        if ($stmt->execute()) { $message = "<span style='color: green;'>✨ สร้างโพสต์สำเร็จแล้ว! <a href='index.php'>กลับไปหน้าฟีด</a></span>"; } 
-        else { $message = "<span style='color: red;'>เกิดข้อผิดพลาดในการบันทึกข้อมูล</span>"; }
+        if ($stmt->execute()) { $message = "<span style='color: #22c55e;'>✨ Post created successfully! <a href='index.php' style='color:#3b82f6;'>Go to Feed</a></span>"; } 
+        else { $message = "<span style='color: #ef4444;'>Error saving data.</span>"; }
         $stmt->close();
     } else if (empty($message)) { 
-        $message = "<span style='color: red;'>กรุณากรอกข้อมูลให้ครบถ้วน</span>"; 
+        $message = "<span style='color: #ef4444;'>Please fill in all required fields.</span>"; 
     }
 }
 ?>
 
 <!DOCTYPE html>
-<html lang="th">
+<html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>สร้างโพสต์ใหม่ - ระบบแจ้งของหาย</title>
-    <link rel="stylesheet" href="style.css">
-    <style>
-        .post-container { background: white; padding: 30px; border-radius: 8px; box-shadow: 0 4px 8px rgba(0,0,0,0.1); max-width: 600px; margin: auto; margin-top: 20px; }
-        label { font-weight: bold; margin-top: 15px; display: block; color: #555; }
-        input[type="text"], textarea, select, input[type="file"] { width: 100%; padding: 10px; margin-top: 5px; border: 1px solid #ccc; border-radius: 4px; box-sizing: border-box; font-family: inherit; }
-        .checkbox-group { background: #f9f9f9; padding: 10px; border: 1px solid #ccc; border-radius: 4px; margin-top: 5px; display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
-        .btn-submit { background-color: #28a745; color: white; padding: 12px 20px; border: none; border-radius: 4px; cursor: pointer; font-size: 16px; width: 100%; margin-top: 20px; font-weight: bold; }
-    </style>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Create Post - Lost & Found</title>
+    <link rel="stylesheet" href="style.css?v=<?php echo time(); ?>">
 </head>
 <body>
 
-<div class="post-container">
-    <h2 style="text-align: center; margin-top:0;">📝 สร้างโพสต์ใหม่</h2>
-    <div style="text-align: center; margin-bottom: 15px; font-weight: bold;"><?php echo $message; ?></div>
-
-    <form id="postForm" method="POST" action="" enctype="multipart/form-data">
-        <label>ประเภทการแจ้ง:</label>
-        <select name="post_type" required>
-            <option value="lost">🔍 แจ้งของหาย (ตามหาสิ่งของ)</option>
-            <option value="found">💡 แจ้งพบของ (ตามหาเจ้าของ)</option>
-        </select>
-
-        <label>หมวดหมู่สิ่งของ (เลือกได้มากกว่า 1):</label>
-        <div class="checkbox-group">
-            <label><input type="checkbox" name="item_category[]" value="อุปกรณ์การเรียน"> 📚 อุปกรณ์การเรียน</label>
-            <label><input type="checkbox" name="item_category[]" value="อุปกรณ์อิเล็กทรอนิกส์"> 📱 อิเล็กทรอนิกส์</label>
-            <label><input type="checkbox" name="item_category[]" value="ของใช้ส่วนตัว"> 🎒 ของใช้ส่วนตัว</label>
-            <label><input type="checkbox" name="item_category[]" value="เอกสารสำคัญ / บัตร"> 💳 เอกสาร/บัตร</label>
-            <label><input type="checkbox" name="item_category[]" value="อาหาร / กล่องข้าว"> 🍱 อาหาร/กล่องข้าว</label>
-            <label><input type="checkbox" name="item_category[]" value="ของมีค่า / ของสำคัญอื่นๆ"> 💎 ของมีค่า</label>
-            <label><input type="checkbox" name="item_category[]" value="อื่นๆ" checked> ❓ อื่นๆ</label>
+<div class="app-container">
+    <header class="top-bar">
+        <div class="header-logo-group">
+            <button class="menu-toggle" onclick="toggleSidebar()">☰</button>
+            <a href="index.php" class="header-logo">Lost & Found</a>
         </div>
+        <div class="header-right-group" style="margin-left:auto;">
+            <a href="profile.php" class="header-user-menu">
+                <img src="<?php echo htmlspecialchars($my_profile_image); ?>" class="header-profile-img">
+                <span class="header-username"><?php echo htmlspecialchars($user_data['username']); ?></span>
+            </a>
+        </div>
+    </header>
 
-        <label>หัวข้อ:</label>
-        <input type="text" name="title" placeholder="หัวข้อโพสต์..." required>
-        <label>รายละเอียด:</label>
-        <textarea name="description" rows="5" required></textarea>
+    <div class="overlay" id="mobileOverlay" onclick="toggleSidebar()"></div>
 
-        <label>แนบรูปภาพ <span style="color:#dc3545;">(สูงสุดไม่เกิน 10 รูป)</span>:</label>
-        <input type="file" id="postImages" name="post_images[]" accept="image/png, image/jpeg, image/gif" multiple>
+    <aside class="sidebar" id="sidebar">
+        <div class="sidebar-menu">
+            <div class="menu-label">Discover</div>
+            <a href="index.php" class="menu-item"><span class="icon">🏠</span> Home</a>
+            <div class="menu-label" style="margin-top: 20px;">My Space</div>
+            <a href="my_posts.php" class="menu-item"><span class="icon">📁</span> My Posts</a>
+            <?php if ($user_data['role'] == 'admin'): ?>
+                <div class="menu-label" style="margin-top: 20px; color:#ef4444;">Admin Only</div>
+                <a href="search_users.php" class="menu-item" style="color:#ef4444;"><span class="icon">⚙️</span> Backend (Admin)</a>
+                <a href="logs.php" class="menu-item" style="color:#ef4444;"><span class="icon">📜</span> System Logs</a>
+            <?php endif; ?>
+        </div>
+        <div class="sidebar-footer">
+            <a href="profile.php" class="menu-item"><span class="icon">👤</span> Settings</a>
+            <a href="logout.php" class="menu-item" style="color: #ef4444;"><span class="icon">🚪</span> Sign Out</a>
+        </div>
+    </aside>
 
-        <button type="submit" class="btn-submit">บันทึกโพสต์</button>
-    </form>
-    <a href="index.php" style="display: block; text-align: center; margin-top: 15px; color: gray; text-decoration: none;">← กลับไปหน้าแรก</a>
+    <main class="main-content">
+        <div class="content-wrapper" style="display:flex; justify-content:center;">
+            <div class="post-card" style="width: 100%; max-width: 600px;">
+                <h2 style="text-align: center; margin-top:0;">📝 Create New Post</h2>
+                <div style="text-align: center; margin-bottom: 15px; font-weight: bold;"><?php echo $message; ?></div>
+
+                <form id="postForm" method="POST" action="" enctype="multipart/form-data">
+                    <label style="font-weight:bold; display:block; margin-bottom:8px;">Post Type:</label>
+                    <select name="post_type" style="width: 100%; padding: 10px; border-radius: 8px; margin-bottom: 15px;" required>
+                        <option value="lost">🔍 Lost Item (Looking for item)</option>
+                        <option value="found">💡 Found Item (Looking for owner)</option>
+                    </select>
+
+                    <label style="font-weight:bold; display:block; margin-bottom:8px;">Category (Select multiple):</label>
+                    <div class="checkbox-group" style="margin-bottom: 15px;">
+                        <label style="cursor:pointer; display:flex; align-items:center; gap:5px;"><input type="checkbox" name="item_category[]" value="Study Tools"> 📚 Study Tools</label>
+                        <label style="cursor:pointer; display:flex; align-items:center; gap:5px;"><input type="checkbox" name="item_category[]" value="Electronics"> 📱 Electronics</label>
+                        <label style="cursor:pointer; display:flex; align-items:center; gap:5px;"><input type="checkbox" name="item_category[]" value="Personal Items"> 🎒 Personal Items</label>
+                        <label style="cursor:pointer; display:flex; align-items:center; gap:5px;"><input type="checkbox" name="item_category[]" value="Documents/Cards"> 💳 Documents/Cards</label>
+                        <label style="cursor:pointer; display:flex; align-items:center; gap:5px;"><input type="checkbox" name="item_category[]" value="Food/Boxes"> 🍱 Food/Boxes</label>
+                        <label style="cursor:pointer; display:flex; align-items:center; gap:5px;"><input type="checkbox" name="item_category[]" value="Valuables"> 💎 Valuables</label>
+                        <label style="cursor:pointer; display:flex; align-items:center; gap:5px;"><input type="checkbox" name="item_category[]" value="Others" checked> ❓ Others</label>
+                    </div>
+
+                    <label style="font-weight:bold; display:block; margin-bottom:8px;">Title:</label>
+                    <input type="text" name="title" style="width: 100%; padding: 10px; border-radius: 8px; margin-bottom: 15px;" placeholder="Post title..." required>
+                    
+                    <label style="font-weight:bold; display:block; margin-bottom:8px;">Description:</label>
+                    <textarea name="description" rows="5" style="width: 100%; padding: 10px; border-radius: 8px; margin-bottom: 15px;" placeholder="More details..." required></textarea>
+
+                    <label style="font-weight:bold; display:block; margin-bottom:8px;">Upload Images <span style="color:#ef4444;">(Max 10)</span>:</label>
+                    <input type="file" id="postImages" name="post_images[]" accept="image/png, image/jpeg, image/gif" style="width: 100%; padding: 10px; border-radius: 8px; margin-bottom: 20px;" multiple>
+
+                    <button type="submit" class="btn btn-success" style="width: 100%; padding: 15px;">Save Post</button>
+                </form>
+            </div>
+        </div>
+    </main>
 </div>
 
 <script>
-// เช็กฝั่งหน้าเว็บตอนผู้ใช้กดอัปโหลด ว่าเลือกเกิน 10 ไฟล์หรือไม่
+function toggleSidebar() {
+    const sidebar = document.getElementById('sidebar');
+    const overlay = document.getElementById('mobileOverlay');
+    sidebar.classList.toggle('active');
+    overlay.style.display = sidebar.classList.contains('active') ? 'block' : 'none';
+}
 document.getElementById('postForm').addEventListener('submit', function(e) {
     var fileInput = document.getElementById('postImages');
     if(fileInput.files.length > 10) {
-        e.preventDefault(); // เบรกไม่ให้บันทึก
-        alert("⚠️ คุณเลือกรูปภาพเกิน 10 รูป กรุณาเลือกใหม่ครับ");
-        fileInput.value = ''; // ล้างค่าที่เลือกไว้
+        e.preventDefault();
+        alert("⚠️ Maximum 10 images allowed. Please re-select.");
+        fileInput.value = '';
     }
 });
 </script>
-
 </body>
 </html>
