@@ -10,11 +10,8 @@ if (!isset($_SESSION['user_id'])) {
 $user_id = $_SESSION['user_id'];
 $message = "";
 
-// ส่วนบันทึกข้อมูล
 if ($_SERVER["REQUEST_METHOD"] == "POST") {
-    // ป้องกัน XSS และ Code Injection
     $contact_info = htmlspecialchars(strip_tags(trim($_POST['contact_info'])), ENT_QUOTES, 'UTF-8');
-    
     $profile_picture_path = "";
 
     if (isset($_FILES['profile_picture']) && $_FILES['profile_picture']['error'] == 0) {
@@ -66,19 +63,12 @@ $my_profile_image = !empty($user_data['profile_picture']) ? $user_data['profile_
 <body>
 
 <div class="app-container">
-    
     <header class="top-bar">
         <div class="header-logo-group">
             <button class="menu-toggle" onclick="toggleSidebar()">☰</button>
             <a href="index.php" class="header-logo">Lost & Found</a>
         </div>
-        
-        <form method="GET" action="index.php" class="header-search-form">
-            <input type="text" name="q" class="search-input" placeholder="Search items, locations...">
-            <button type="submit" class="btn-header btn-header-primary">Search</button>
-        </form>
-        
-        <div class="header-right-group">
+        <div class="header-right-group" style="margin-left:auto;">
             <a href="create_post.php" class="header-create-btn" title="Create Post">➕</a>
             <a href="profile.php" class="header-user-menu">
                 <img src="<?php echo htmlspecialchars($my_profile_image); ?>" class="header-profile-img" alt="Profile">
@@ -93,10 +83,9 @@ $my_profile_image = !empty($user_data['profile_picture']) ? $user_data['profile_
         <div class="sidebar-menu">
             <div class="menu-label">Discover</div>
             <a href="index.php" class="menu-item"><span class="icon">🏠</span> Home</a>
-            
             <div class="menu-label" style="margin-top: 20px;">My Space</div>
             <a href="my_posts.php" class="menu-item"><span class="icon">📁</span> My Posts</a>
-            
+            <a href="#" class="menu-item" onclick="openNotificationModal()"><span class="icon">🔔</span> Notifications</a>
             <?php if ($user_data['role'] == 'admin'): ?>
                 <div class="menu-label" style="margin-top: 20px; color:#ef4444;">Admin Only</div>
                 <a href="search_users.php" class="menu-item" style="color:#ef4444;"><span class="icon">⚙️</span> Backend (Admin)</a>
@@ -111,7 +100,6 @@ $my_profile_image = !empty($user_data['profile_picture']) ? $user_data['profile_
 
     <main class="main-content">
         <div class="content-wrapper" style="display: flex; justify-content: center; padding-top: 40px;">
-            
             <div class="post-card" style="width: 100%; max-width: 500px; text-align: center;">
                 <h2 style="margin-top: 0;">Profile Settings</h2>
                 <p style="color: var(--text-muted); margin-bottom: 20px;">@<?php echo htmlspecialchars($user_data['username']); ?></p>
@@ -130,19 +118,74 @@ $my_profile_image = !empty($user_data['profile_picture']) ? $user_data['profile_
                     <button type="submit" class="btn btn-primary" style="width: 100%; padding: 14px; font-size: 16px;">Save Changes</button>
                 </form>
             </div>
-
         </div>
     </main>
 </div>
 
+<div id="notificationModal" class="modal">
+    <div class="modal-content" style="max-width: 600px;">
+        <span class="close-btn" onclick="closeNotificationModal()">&times;</span>
+        <div class="notif-header">
+            <h3 style="margin: 0; color: var(--text-main);">🔔 Notifications</h3>
+            <div style="display: flex; gap: 10px;">
+                <button onclick="openMutedUsersModal()" class="notif-manage-btn">🔕 Muted Users</button>
+                <button class="notif-clear-btn" onclick="clearAllNotifications()">Clear All</button>
+            </div>
+        </div>
+        <div id="notificationList" style="max-height: 400px; overflow-y: auto; padding-right: 5px;"></div>
+    </div>
+</div>
+
+<div id="mutedUsersModal" class="modal" style="z-index: 2100;">
+    <div class="modal-content" style="max-width: 450px;">
+        <span class="close-btn" onclick="closeMutedUsersModal()">&times;</span>
+        <h3 style="margin-top: 0; border-bottom: 1px solid var(--border-color); padding-bottom: 10px; color: var(--text-main);">🔕 Muted Users</h3>
+        <div id="mutedUsersList" style="max-height: 300px; overflow-y: auto;"></div>
+    </div>
+</div>
+
 <script>
-function toggleSidebar() {
-    const sidebar = document.getElementById('sidebar');
-    const overlay = document.getElementById('mobileOverlay');
-    sidebar.classList.toggle('active');
-    overlay.style.display = sidebar.classList.contains('active') ? 'block' : 'none';
+function toggleSidebar() { document.getElementById('sidebar').classList.toggle('active'); document.getElementById('mobileOverlay').style.display = document.getElementById('sidebar').classList.contains('active') ? 'block' : 'none'; }
+function openNotificationModal() { document.getElementById('notificationModal').style.display = 'flex'; loadNotifications(); }
+function closeNotificationModal() { document.getElementById('notificationModal').style.display = 'none'; }
+function openMutedUsersModal() { document.getElementById('mutedUsersModal').style.display = 'flex'; loadMutedUsers(); }
+function closeMutedUsersModal() { document.getElementById('mutedUsersModal').style.display = 'none'; }
+function loadNotifications() {
+    let list = document.getElementById('notificationList'); list.innerHTML = '<p style="text-align:center; color: var(--text-muted); margin-top: 20px;">Loading...</p>';
+    fetch('notification_api.php?action=fetch').then(r => r.json()).then(data => {
+        list.innerHTML = ''; if(data.length === 0) { list.innerHTML = '<p style="text-align:center; color: var(--text-muted); margin-top: 20px;">No new notifications</p>'; return; }
+        data.forEach(n => {
+            let img = n.profile_picture ? n.profile_picture : 'https://via.placeholder.com/45?text=U';
+            let actionText = n.type === 'comment' ? 'commented on your post.' : 'replied to your comment.';
+            let timeStr = new Date(n.created_at).toLocaleString('en-GB', { day:'numeric', month:'short', hour:'2-digit', minute:'2-digit' });
+            list.innerHTML += `<div class="notif-item" onclick="window.location.href='index.php?post_id=${n.post_id}'"><img src="${img}" class="notif-avatar"><div class="notif-content"><p class="notif-text"><strong style="color:var(--primary);">${n.username}</strong> ${actionText}</p><p class="notif-time">${timeStr}</p></div><button class="notif-menu-btn" onclick="event.stopPropagation(); toggleNotifMenu(${n.id}, event)">⋮</button><div id="notif-menu-${n.id}" class="notif-dropdown"><div class="notif-dropdown-item" onclick="event.stopPropagation(); muteUser(${n.actor_id}, '${n.username}')">🔕 Mute notifications</div><div class="notif-dropdown-item danger" onclick="event.stopPropagation(); deleteNotification(${n.id})">🗑️ Delete</div></div></div>`;
+        });
+    });
+}
+function toggleNotifMenu(id, event) { event.stopPropagation(); document.querySelectorAll('.notif-dropdown').forEach(d => d.classList.remove('show')); document.getElementById('notif-menu-' + id).classList.toggle('show'); }
+function clearAllNotifications() { if(!confirm("Clear all notifications?")) return; let fd = new FormData(); fd.append('action', 'delete_all'); fetch('notification_api.php', { method: 'POST', body: fd }).then(r=>r.text()).then(res=>{ if(res==='success') loadNotifications(); }); }
+function deleteNotification(id) { let fd = new FormData(); fd.append('action', 'delete_one'); fd.append('notif_id', id); fetch('notification_api.php', { method: 'POST', body: fd }).then(r=>r.text()).then(res=>{ if(res==='success') loadNotifications(); }); }
+function muteUser(mutedId, username) { if(!confirm(`Mute notifications from ${username}?`)) return; let fd = new FormData(); fd.append('action', 'mute_user'); fd.append('muted_id', mutedId); fetch('notification_api.php', { method: 'POST', body: fd }).then(r=>r.text()).then(res=>{ if(res==='success') { alert(`Muted ${username}`); loadNotifications(); } }); }
+function loadMutedUsers() {
+    let list = document.getElementById('mutedUsersList'); list.innerHTML = '<p style="text-align:center; color: var(--text-muted);">Loading...</p>';
+    let fd = new FormData(); fd.append('action', 'fetch_muted');
+    fetch('notification_api.php', { method: 'POST', body: fd }).then(r => r.json()).then(data => {
+        list.innerHTML = ''; if(data.length === 0) { list.innerHTML = '<p style="text-align:center; color: var(--text-muted); padding: 20px;">No muted users.</p>'; return; }
+        data.forEach(u => {
+            let img = u.profile_picture ? u.profile_picture : 'https://via.placeholder.com/35?text=U';
+            list.innerHTML += `<div style="display:flex; justify-content:space-between; align-items:center; padding:10px; border-bottom:1px solid var(--border-color);"><div style="display:flex; align-items:center; gap:10px;"><img src="${img}" style="width:35px; height:35px; border-radius:50%; object-fit:cover;"><span style="color:var(--text-main); font-weight:bold;">${u.username}</span></div><button onclick="unmuteUser(${u.muted_user_id})" class="btn btn-success" style="padding: 5px 10px; font-size:12px;">Unmute</button></div>`;
+        });
+    });
+}
+function unmuteUser(id) { let fd = new FormData(); fd.append('action', 'unmute_user'); fd.append('muted_id', id); fetch('notification_api.php', { method: 'POST', body: fd }).then(r=>r.text()).then(res=>{ if(res==='success') { loadMutedUsers(); loadNotifications(); } }); }
+
+window.onclick = function(event) {
+    document.querySelectorAll('.notif-dropdown').forEach(d => d.classList.remove('show'));
+    let nModal = document.getElementById('notificationModal');
+    let mModal = document.getElementById('mutedUsersModal');
+    if (event.target == nModal) closeNotificationModal();
+    if (event.target == mModal) closeMutedUsersModal();
 }
 </script>
-
 </body>
 </html>
