@@ -57,7 +57,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
 </head>
 <body class="auth-body">
 
-    <div class="auth-bg-text">LOST AND FOUND</div>
+    <div class="auth-bg-text">LOST&FOUND</div>
 
     <div class="auth-container">
         <h2 style="margin-top: 0; color: white;">Sign In</h2>

@@ -9,7 +9,6 @@ if (!isset($_SESSION['user_id'])) {
 
 $user_id = $_SESSION['user_id'];
 
-// ดึงข้อมูลผู้ใช้งาน
 $sql_user = "SELECT username, role, profile_picture, is_banned, ban_until FROM users WHERE id = ?";
 $stmt_user = $conn->prepare($sql_user);
 $stmt_user->bind_param("i", $user_id);
@@ -37,6 +36,7 @@ $search_text = isset($_GET['q']) ? trim($_GET['q']) : '';
 $filter_type = isset($_GET['filter_type']) ? $_GET['filter_type'] : '';
 $filter_status = isset($_GET['filter_status']) ? $_GET['filter_status'] : '';
 $filter_categories = isset($_GET['category']) ? $_GET['category'] : []; 
+$filter_post_id = isset($_GET['post_id']) ? $_GET['post_id'] : ''; 
 
 $sql_posts = "
     SELECT p.id AS post_id, p.title, p.description, p.image_url, p.post_type, 
@@ -50,28 +50,34 @@ $sql_posts = "
 $params = [];
 $types = "";
 
-if ($search_text !== '') {
-    $sql_posts .= " AND (p.title LIKE ? OR p.description LIKE ?)";
-    $search_param = "%" . $search_text . "%";
-    $params[] = $search_param; $params[] = $search_param;
-    $types .= "ss";
-}
-if ($filter_type !== '') {
-    $sql_posts .= " AND p.post_type = ?";
-    $params[] = $filter_type; $types .= "s";
-}
-if ($filter_status !== '') {
-    $sql_posts .= " AND p.status = ?";
-    $params[] = $filter_status; $types .= "s";
-}
-if (!empty($filter_categories)) {
-    $cat_conditions = [];
-    foreach ($filter_categories as $cat) {
-        $cat_conditions[] = "p.item_category LIKE ?";
-        $params[] = "%" . $cat . "%";
-        $types .= "s";
+if ($filter_post_id !== '') {
+    $sql_posts .= " AND p.id = ?";
+    $params[] = $filter_post_id;
+    $types .= "i";
+} else {
+    if ($search_text !== '') {
+        $sql_posts .= " AND (p.title LIKE ? OR p.description LIKE ?)";
+        $search_param = "%" . $search_text . "%";
+        $params[] = $search_param; $params[] = $search_param;
+        $types .= "ss";
     }
-    $sql_posts .= " AND (" . implode(" OR ", $cat_conditions) . ")";
+    if ($filter_type !== '') {
+        $sql_posts .= " AND p.post_type = ?";
+        $params[] = $filter_type; $types .= "s";
+    }
+    if ($filter_status !== '') {
+        $sql_posts .= " AND p.status = ?";
+        $params[] = $filter_status; $types .= "s";
+    }
+    if (!empty($filter_categories)) {
+        $cat_conditions = [];
+        foreach ($filter_categories as $cat) {
+            $cat_conditions[] = "p.item_category LIKE ?";
+            $params[] = "%" . $cat . "%";
+            $types .= "s";
+        }
+        $sql_posts .= " AND (" . implode(" OR ", $cat_conditions) . ")";
+    }
 }
 
 $sql_posts .= " ORDER BY p.created_at DESC";
@@ -89,7 +95,7 @@ $result_posts = $stmt_posts->get_result();
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Home - Lost & Found App</title>
+    <title>Home - Lost & Found</title>
     <link rel="stylesheet" href="style.css?v=<?php echo time(); ?>">
 </head>
 <body>
@@ -126,17 +132,17 @@ $result_posts = $stmt_posts->get_result();
             
             <div class="menu-label" style="margin-top: 20px;">My Space</div>
             <a href="my_posts.php" class="menu-item"><span class="icon">📁</span> My Posts</a>
+            <a href="#" class="menu-item" onclick="openNotificationModal()"><span class="icon">🔔</span> Notifications</a>
             
             <?php if ($user_data['role'] == 'admin'): ?>
-                <div class="menu-label" style="margin-top: 20px; color:#ff6b6b;">Admin Only</div>
-                <a href="search_users.php" class="menu-item" style="color:#ff6b6b;"><span class="icon">⚙️</span> Backend (Admin)</a>
-                <a href="logs.php" class="menu-item" style="color:#ff6b6b;"><span class="icon">📜</span> System Logs</a>
+                <div class="menu-label" style="margin-top: 20px; color:#ef4444;">Admin Only</div>
+                <a href="search_users.php" class="menu-item" style="color:#ef4444;"><span class="icon">⚙️</span> Backend (Admin)</a>
+                <a href="logs.php" class="menu-item" style="color:#ef4444;"><span class="icon">📜</span> System Logs</a>
             <?php endif; ?>
         </div>
-        
         <div class="sidebar-footer">
             <a href="profile.php" class="menu-item"><span class="icon">👤</span> Settings</a>
-            <a href="logout.php" class="menu-item" style="color: #ff6b6b;"><span class="icon">🚪</span> Sign Out</a>
+            <a href="logout.php" class="menu-item" style="color: #ef4444;"><span class="icon">🚪</span> Sign Out</a>
         </div>
     </aside>
 
@@ -147,8 +153,12 @@ $result_posts = $stmt_posts->get_result();
                 <h1 class="page-heading">Discover Feed</h1>
             </div>
 
+            <?php if ($filter_post_id !== ''): ?>
+                <a href="index.php" class="btn btn-primary" style="margin-bottom: 20px;">← Back to all posts</a>
+            <?php endif; ?>
+
             <?php if ($search_text !== '' || $filter_type !== '' || $filter_status !== '' || !empty($filter_categories)): ?>
-                <a href="index.php" style="display:inline-block; margin-bottom:15px; color:#dc3545; text-decoration:none; font-weight:bold; font-size:14px;">✖ Clear all filters</a>
+                <a href="index.php" style="display:inline-block; margin-bottom:15px; color:#ef4444; text-decoration:none; font-weight:bold; font-size:14px;">✖ Clear all filters</a>
             <?php endif; ?>
 
             <?php if ($result_posts->num_rows > 0): ?>
@@ -171,24 +181,24 @@ $result_posts = $stmt_posts->get_result();
 
                         <div class="post-body">
                             <?php if ($post['status'] == 'resolved'): ?>
-                                <span class="badge" style="background-color: #28a745;">✅ Resolved</span>
+                                <span class="badge" style="background-color: #22c55e;">✅ Resolved</span>
                             <?php else: ?>
-                                <span class="badge" style="background-color: #ffc107; color: #333;">⏳ Pending</span>
+                                <span class="badge" style="background-color: #eab308; color: #111;">⏳ Pending</span>
                             <?php endif; ?>
 
                             <?php if ($post['post_type'] == 'lost'): ?>
-                                <span class="badge" style="background-color: #dc3545;">🔍 Lost Item</span>
+                                <span class="badge" style="background-color: #ef4444;">🔍 Lost Item</span>
                             <?php else: ?>
-                                <span class="badge" style="background-color: #0084ff;">💡 Found Item</span>
+                                <span class="badge" style="background-color: #3b82f6;">💡 Found Item</span>
                             <?php endif; ?>
 
                             <?php 
-                                $categories = !empty($post['item_category']) ? explode(",", $post['item_category']) : ['อื่นๆ'];
+                                $categories = !empty($post['item_category']) ? explode(",", $post['item_category']) : ['Others'];
                                 foreach($categories as $cat): 
                                     $cat = trim($cat);
                                     if(!empty($cat)):
                             ?>
-                                <span class="badge" style="background-color: #6c757d;">🏷️ <?php echo htmlspecialchars($cat); ?></span>
+                                <span class="badge" style="background-color: #64748b;">🏷️ <?php echo htmlspecialchars($cat); ?></span>
                             <?php 
                                     endif;
                                 endforeach; 
@@ -242,14 +252,38 @@ $result_posts = $stmt_posts->get_result();
     </main>
 </div>
 
+<div id="notificationModal" class="modal">
+    <div class="modal-content" style="max-width: 600px;">
+        <span class="close-btn" onclick="closeNotificationModal()">&times;</span>
+        <div class="notif-header">
+            <h3 style="margin: 0; color: var(--text-main);">🔔 Notifications</h3>
+            <div style="display: flex; gap: 10px;">
+                <button onclick="openMutedUsersModal()" class="notif-manage-btn">🔕 Muted Users</button>
+                <button class="notif-clear-btn" onclick="clearAllNotifications()">Clear All</button>
+            </div>
+        </div>
+        <div id="notificationList" style="max-height: 400px; overflow-y: auto; padding-right: 5px;">
+            <p style="text-align:center; color: var(--text-muted); margin-top: 20px;">Loading...</p>
+        </div>
+    </div>
+</div>
+
+<div id="mutedUsersModal" class="modal" style="z-index: 2100;">
+    <div class="modal-content" style="max-width: 450px;">
+        <span class="close-btn" onclick="closeMutedUsersModal()">&times;</span>
+        <h3 style="margin-top: 0; border-bottom: 1px solid var(--border-color); padding-bottom: 10px; color: var(--text-main);">🔕 Muted Users</h3>
+        <div id="mutedUsersList" style="max-height: 300px; overflow-y: auto;"></div>
+    </div>
+</div>
+
 <div id="commentModal" class="modal">
     <div class="modal-content">
         <span class="close-btn" onclick="closeModal()">&times;</span>
-        <h3 style="margin-top: 0; border-bottom: 1px solid #eee; padding-bottom: 10px;">Comments</h3>
+        <h3 style="margin-top: 0; border-bottom: 1px solid var(--border-color); padding-bottom: 10px;">Comments</h3>
         <div id="commentList" class="comment-list" style="margin-bottom: 15px; max-height: 300px; overflow-y:auto; scrollbar-width: thin;"></div>
         <div class="comment-input-area" style="display:flex; gap:10px;">
             <input type="hidden" id="modalPostId">
-            <input type="text" id="commentText" placeholder="Write a comment..." onkeypress="handleEnter(event)" style="flex-grow:1; padding:10px; border-radius:8px; border:1px solid #ccc; font-family: inherit;">
+            <input type="text" id="commentText" placeholder="Write a comment..." maxlength="500" onkeypress="handleEnter(event)" style="flex-grow:1; padding:10px; border-radius:8px; border:1px solid var(--border-color); font-family: inherit; background: rgba(255,255,255,0.05); color:white; outline:none;">
             <button onclick="submitComment()" class="btn btn-primary">Send</button>
         </div>
     </div>
@@ -260,14 +294,14 @@ $result_posts = $stmt_posts->get_result();
         <span class="close-btn" onclick="closeProfileModal()">&times;</span>
         <img id="pm-img" src="" style="width: 100px; height: 100px; border-radius: 50%; object-fit: cover; margin: auto; border: 3px solid var(--primary);">
         <h2 id="pm-name" style="margin: 10px 0;"></h2>
-        <p id="pm-ban-status" style="color: #dc3545; font-weight: bold; display: none; background: #ffeeba; padding: 5px; border-radius: 4px;">⚠️ Banned</p>
-        <p style="color: gray; font-size: 14px;">Contact Info:</p>
-        <p id="pm-contact" style="background: #f4f6f9; padding: 15px; border-radius: 8px; font-size: 14px; text-align: left;"></p>
+        <p id="pm-ban-status" style="color: #ef4444; font-weight: bold; display: none; background: rgba(239,68,68,0.1); padding: 5px; border-radius: 4px;">⚠️ Banned</p>
+        <p style="color: var(--text-muted); font-size: 14px; font-weight:bold;">Contact Info:</p>
+        <p id="pm-contact"></p>
 
-        <div id="admin-ban-controls" style="display: none; margin-top: 15px; border-top: 1px solid #eee; padding-top: 15px;">
+        <div id="admin-ban-controls" style="display: none; margin-top: 15px; border-top: 1px solid var(--border-color); padding-top: 15px;">
             <input type="hidden" id="targetUserId">
             <button id="btn-show-ban" onclick="openBanModal()" class="btn btn-danger" style="width: 100%; margin-bottom:5px;">🚫 Ban User</button>
-            <button id="btn-do-unban" onclick="unbanUser()" class="btn btn-success" style="width: 100%; background-color: #28a745; display: none;">✅ Unban User</button>
+            <button id="btn-do-unban" onclick="unbanUser()" class="btn btn-success" style="width: 100%; display: none;">✅ Unban User</button>
         </div>
     </div>
 </div>
@@ -275,9 +309,9 @@ $result_posts = $stmt_posts->get_result();
 <div id="banModal" class="modal" style="z-index: 2500;">
     <div class="modal-content" style="max-width: 400px;">
         <span class="close-btn" onclick="closeBanModal()">&times;</span>
-        <h3 style="margin-top: 0; color: #dc3545;">🚫 Ban User</h3>
+        <h3 style="margin-top: 0; color: #ef4444;">🚫 Ban User</h3>
         <label style="display:block; margin-top:10px; font-weight:bold;">Reason:</label>
-        <select id="banCategory" style="width: 100%; padding: 10px; border-radius:8px; margin-bottom: 10px; border:1px solid #ccc; font-family:inherit;">
+        <select id="banCategory" style="width: 100%; padding: 10px; border-radius:8px; margin-bottom: 10px; border:1px solid var(--border-color); background: rgba(255,255,255,0.05); color:white; outline:none; font-family:inherit;">
             <option value="Inappropriate Behavior">Inappropriate Behavior</option>
             <option value="Fake Information">Fake Information</option>
             <option value="Scam/Fraud">Scam / Fraud</option>
@@ -285,9 +319,9 @@ $result_posts = $stmt_posts->get_result();
             <option value="Others">Others</option>
         </select>
         <label style="display:block; font-weight:bold;">Details:</label>
-        <textarea id="banDetails" rows="3" style="width: 100%; padding: 10px; border-radius:8px; margin-bottom: 10px; border:1px solid #ccc; font-family: inherit;" placeholder="Enter details..."></textarea>
+        <textarea id="banDetails" rows="3" style="width: 100%; padding: 10px; border-radius:8px; margin-bottom: 10px; border:1px solid var(--border-color); background: rgba(255,255,255,0.05); color:white; outline:none; font-family: inherit;" placeholder="Enter details..."></textarea>
         <label style="display:block; font-weight:bold;">Duration:</label>
-        <select id="banDuration" style="width: 100%; padding: 10px; border-radius:8px; margin-bottom: 20px; border:1px solid #ccc; font-family: inherit;">
+        <select id="banDuration" style="width: 100%; padding: 10px; border-radius:8px; margin-bottom: 20px; border:1px solid var(--border-color); background: rgba(255,255,255,0.05); color:white; outline:none; font-family: inherit;">
             <option value="1h">1 Hour</option>
             <option value="1d">1 Day</option>
             <option value="7d">7 Days</option>
@@ -310,17 +344,17 @@ $result_posts = $stmt_posts->get_result();
     <div class="modal-content">
         <form method="GET" action="index.php">
             <span class="close-btn" onclick="closeFilterModal()">&times;</span>
-            <h3 style="margin-top: 0; border-bottom: 1px solid #eee; padding-bottom: 10px;">⚙️ Search Filters</h3>
+            <h3 style="margin-top: 0; border-bottom: 1px solid var(--border-color); padding-bottom: 10px;">⚙️ Search Filters</h3>
             
             <label style="font-weight: bold; margin-top: 10px; display: block;">1. Post Type:</label>
-            <select name="filter_type" style="width: 100%; padding: 10px; border-radius: 8px; border: 1px solid #ccc; font-family: inherit;">
+            <select name="filter_type" style="width: 100%; padding: 10px; border-radius: 8px; border: 1px solid var(--border-color); background: rgba(255,255,255,0.05); color:white; outline:none; font-family: inherit;">
                 <option value="">-- All Types --</option>
                 <option value="lost" <?php if($filter_type=='lost') echo 'selected'; ?>>🔍 Lost Item</option>
                 <option value="found" <?php if($filter_type=='found') echo 'selected'; ?>>💡 Found Item</option>
             </select>
 
             <label style="font-weight: bold; margin-top: 15px; display: block;">2. Status:</label>
-            <select name="filter_status" style="width: 100%; padding: 10px; border-radius: 8px; border: 1px solid #ccc; font-family: inherit;">
+            <select name="filter_status" style="width: 100%; padding: 10px; border-radius: 8px; border: 1px solid var(--border-color); background: rgba(255,255,255,0.05); color:white; outline:none; font-family: inherit;">
                 <option value="">-- All Statuses --</option>
                 <option value="active" <?php if($filter_status=='active') echo 'selected'; ?>>⏳ Pending</option>
                 <option value="resolved" <?php if($filter_status=='resolved') echo 'selected'; ?>>✅ Resolved</option>
@@ -342,6 +376,29 @@ $result_posts = $stmt_posts->get_result();
 </div>
 
 <script>
+// ฟังก์ชันสร้างปุ่ม See More สำหรับข้อความยาวๆ (ทั้งหน้าฟีดและในคอมเมนต์)
+function applySeeMore(selector) {
+    document.querySelectorAll(selector).forEach(function(elem) {
+        if (elem.nextElementSibling && elem.nextElementSibling.classList.contains('see-more-btn')) return;
+        
+        if (elem.scrollHeight > elem.clientHeight) {
+            let btn = document.createElement('button');
+            btn.className = 'see-more-btn';
+            btn.innerText = 'See more...';
+            elem.parentNode.insertBefore(btn, elem.nextSibling);
+
+            btn.addEventListener('click', function() {
+                elem.classList.toggle('expanded');
+                btn.innerText = elem.classList.contains('expanded') ? 'See less' : 'See more...';
+            });
+        }
+    });
+}
+
+document.addEventListener("DOMContentLoaded", function() {
+    setTimeout(() => applySeeMore('.post-desc'), 200);
+});
+
 function toggleSidebar() {
     const sidebar = document.getElementById('sidebar');
     const overlay = document.getElementById('mobileOverlay');
@@ -357,33 +414,111 @@ setInterval(function() {
 
 const currentRole = '<?php echo $user_data['role']; ?>'; 
 
-let currentLightboxImages = [];
-let currentLightboxIndex = 0;
+// ================= ระบบการแจ้งเตือน =================
+function openNotificationModal() { document.getElementById('notificationModal').style.display = 'flex'; loadNotifications(); }
+function closeNotificationModal() { document.getElementById('notificationModal').style.display = 'none'; }
+function openMutedUsersModal() { document.getElementById('mutedUsersModal').style.display = 'flex'; loadMutedUsers(); }
+function closeMutedUsersModal() { document.getElementById('mutedUsersModal').style.display = 'none'; }
 
-function openLightbox(imageArray, startIndex) {
-    currentLightboxImages = imageArray;
-    currentLightboxIndex = startIndex;
-    updateLightboxImage();
-    document.getElementById('lightboxModal').style.display = 'flex';
+function loadNotifications() {
+    let list = document.getElementById('notificationList');
+    list.innerHTML = '<p style="text-align:center; color: var(--text-muted); margin-top: 20px;">Loading...</p>';
+    
+    fetch('notification_api.php?action=fetch').then(r => r.json()).then(data => {
+        list.innerHTML = '';
+        if(data.length === 0) { list.innerHTML = '<p style="text-align:center; color: var(--text-muted); margin-top: 20px;">No new notifications</p>'; return; }
+
+        data.forEach(n => {
+            let img = n.profile_picture ? n.profile_picture : 'https://via.placeholder.com/45?text=U';
+            let actionText = n.type === 'comment' ? 'commented on your post.' : 'replied to your comment.';
+            let timeStr = new Date(n.created_at).toLocaleString('en-GB', { day:'numeric', month:'short', hour:'2-digit', minute:'2-digit' });
+
+            list.innerHTML += `
+                <div class="notif-item" onclick="window.location.href='index.php?post_id=${n.post_id}'">
+                    <img src="${img}" class="notif-avatar" onclick="event.stopPropagation(); openProfileModal(${n.actor_id})">
+                    <div class="notif-content">
+                        <p class="notif-text">
+                            <strong style="color:var(--primary); cursor:pointer;" onclick="event.stopPropagation(); openProfileModal(${n.actor_id})">${n.username}</strong> ${actionText}
+                        </p>
+                        <p class="notif-time">${timeStr}</p>
+                    </div>
+                    <button class="notif-menu-btn" onclick="event.stopPropagation(); toggleNotifMenu(${n.id}, event)">⋮</button>
+                    <div id="notif-menu-${n.id}" class="notif-dropdown">
+                        <div class="notif-dropdown-item" onclick="event.stopPropagation(); muteUser(${n.actor_id}, '${n.username}')">🔕 Mute notifications</div>
+                        <div class="notif-dropdown-item danger" onclick="event.stopPropagation(); deleteNotification(${n.id})">🗑️ Delete</div>
+                    </div>
+                </div>
+            `;
+        });
+    });
 }
+
+function toggleNotifMenu(id, event) {
+    event.stopPropagation();
+    document.querySelectorAll('.notif-dropdown').forEach(d => d.classList.remove('show'));
+    document.getElementById('notif-menu-' + id).classList.toggle('show');
+}
+
+function clearAllNotifications() {
+    if(!confirm("Are you sure you want to clear all notifications?")) return;
+    let formData = new FormData(); formData.append('action', 'delete_all');
+    fetch('notification_api.php', { method: 'POST', body: formData }).then(r => r.text()).then(res => {
+        if(res === 'success') loadNotifications();
+    });
+}
+
+function deleteNotification(id) {
+    let formData = new FormData(); formData.append('action', 'delete_one'); formData.append('notif_id', id);
+    fetch('notification_api.php', { method: 'POST', body: formData }).then(r => r.text()).then(res => {
+        if(res === 'success') loadNotifications();
+    });
+}
+
+function muteUser(mutedId, username) {
+    if(!confirm(`Are you sure you want to mute notifications from ${username}?`)) return;
+    let formData = new FormData(); formData.append('action', 'mute_user'); formData.append('muted_id', mutedId);
+    fetch('notification_api.php', { method: 'POST', body: formData }).then(r => r.text()).then(res => {
+        if(res === 'success') { alert(`${username} has been muted.`); loadNotifications(); }
+    });
+}
+
+function loadMutedUsers() {
+    let list = document.getElementById('mutedUsersList');
+    list.innerHTML = '<p style="text-align:center; color: var(--text-muted);">Loading...</p>';
+    let formData = new FormData(); formData.append('action', 'fetch_muted');
+    fetch('notification_api.php', { method: 'POST', body: formData }).then(r => r.json()).then(data => {
+        list.innerHTML = '';
+        if(data.length === 0) { list.innerHTML = '<p style="text-align:center; color: var(--text-muted); padding: 20px;">No muted users.</p>'; return; }
+        data.forEach(u => {
+            let img = u.profile_picture ? u.profile_picture : 'https://via.placeholder.com/35?text=U';
+            list.innerHTML += `
+                <div style="display:flex; justify-content:space-between; align-items:center; padding:10px; border-bottom:1px solid var(--border-color);">
+                    <div style="display:flex; align-items:center; gap:10px;">
+                        <img src="${img}" style="width:35px; height:35px; border-radius:50%; object-fit:cover;">
+                        <span style="color:var(--text-main); font-weight:bold;">${u.username}</span>
+                    </div>
+                    <button onclick="unmuteUser(${u.muted_user_id})" class="btn btn-success" style="padding: 5px 10px; font-size:12px;">Unmute</button>
+                </div>
+            `;
+        });
+    });
+}
+
+function unmuteUser(id) {
+    let formData = new FormData(); formData.append('action', 'unmute_user'); formData.append('muted_id', id);
+    fetch('notification_api.php', { method: 'POST', body: formData }).then(r => r.text()).then(res => {
+        if(res === 'success') { loadMutedUsers(); loadNotifications(); }
+    });
+}
+
+// --- Lightbox Gallery ---
+let currentLightboxImages = []; let currentLightboxIndex = 0;
+function openLightbox(imageArray, startIndex) { currentLightboxImages = imageArray; currentLightboxIndex = startIndex; updateLightboxImage(); document.getElementById('lightboxModal').style.display = 'flex'; }
 function closeLightbox() { document.getElementById('lightboxModal').style.display = 'none'; currentLightboxImages = []; }
-function changeLightboxImage(e, direction) {
-    e.stopPropagation(); 
-    currentLightboxIndex += direction;
-    if (currentLightboxIndex >= currentLightboxImages.length) currentLightboxIndex = 0;
-    else if (currentLightboxIndex < 0) currentLightboxIndex = currentLightboxImages.length - 1;
-    updateLightboxImage();
-}
-function updateLightboxImage() {
-    if(currentLightboxImages.length > 0) {
-        document.getElementById('lightboxImg').src = currentLightboxImages[currentLightboxIndex];
-        document.getElementById('lightboxCounter').innerText = (currentLightboxIndex + 1) + " / " + currentLightboxImages.length;
-        let navs = document.querySelectorAll('.lightbox-nav');
-        if(currentLightboxImages.length <= 1) navs.forEach(nav => nav.style.display = 'none');
-        else navs.forEach(nav => nav.style.display = 'flex');
-    }
-}
+function changeLightboxImage(e, direction) { e.stopPropagation(); currentLightboxIndex += direction; if (currentLightboxIndex >= currentLightboxImages.length) currentLightboxIndex = 0; else if (currentLightboxIndex < 0) currentLightboxIndex = currentLightboxImages.length - 1; updateLightboxImage(); }
+function updateLightboxImage() { if(currentLightboxImages.length > 0) { document.getElementById('lightboxImg').src = currentLightboxImages[currentLightboxIndex]; document.getElementById('lightboxCounter').innerText = (currentLightboxIndex + 1) + " / " + currentLightboxImages.length; let navs = document.querySelectorAll('.lightbox-nav'); if(currentLightboxImages.length <= 1) navs.forEach(nav => nav.style.display = 'none'); else navs.forEach(nav => nav.style.display = 'flex'); } }
 
+// --- Modals ---
 function openFilterModal() { document.getElementById('filterSearchModal').style.display = 'flex'; }
 function closeFilterModal() { document.getElementById('filterSearchModal').style.display = 'none'; }
 function openBanModal() { document.getElementById('banModal').style.display = 'flex'; }
@@ -391,16 +526,21 @@ function closeBanModal() { document.getElementById('banModal').style.display = '
 function closeProfileModal() { document.getElementById('profileModal').style.display = 'none'; }
 
 window.onclick = function(event) {
+    document.querySelectorAll('.notif-dropdown').forEach(d => d.classList.remove('show'));
     let cModal = document.getElementById('commentModal');
     let pModal = document.getElementById('profileModal');
     let fModal = document.getElementById('filterSearchModal');
     let bModal = document.getElementById('banModal');
     let lModal = document.getElementById('lightboxModal');
+    let nModal = document.getElementById('notificationModal');
+    let mModal = document.getElementById('mutedUsersModal');
     if (event.target == cModal) closeModal();
     if (event.target == pModal) closeProfileModal();
     if (event.target == fModal) closeFilterModal();
     if (event.target == bModal) closeBanModal();
     if (event.target == lModal) closeLightbox();
+    if (event.target == nModal) closeNotificationModal();
+    if (event.target == mModal) closeMutedUsersModal();
 }
 
 function openProfileModal(userId) {
@@ -453,6 +593,7 @@ function unbanUser() {
     });
 }
 
+// --- Comments ---
 let replyingToId = null; 
 function openModal(postId) {
     document.getElementById('commentModal').style.display = 'flex';
@@ -482,9 +623,9 @@ function loadComments(postId) {
                 <div style="margin-bottom: 5px; display:flex; gap:10px;">
                     <img src="${img}" style="width:35px; height:35px; border-radius:50%; cursor:pointer;" onclick="openProfileModal(${c.user_id})">
                     <div style="flex-grow: 1;">
-                        <div style="background:#f0f2f5; padding:8px 12px; border-radius:12px; display:inline-block;">
+                        <div style="background:rgba(255,255,255,0.05); border: 1px solid var(--border-color); padding:8px 12px; border-radius:12px; display:inline-block; max-width: 100%;">
                             <strong style="cursor:pointer; color:var(--primary); font-size:14px;" onclick="openProfileModal(${c.user_id})">${c.username}</strong>
-                            <p style="margin:2px 0 0 0; font-size:14px;">${c.comment_text}</p>
+                            <p class="comment-text" style="margin:2px 0 0 0; font-size:14px; color:white;">${c.comment_text}</p>
                         </div>
                         <div style="margin-top: 3px; margin-left: 10px;">
                             <span style="font-size:12px; cursor:pointer; font-weight:bold; color:var(--text-muted);" onclick="setReply(${c.id}, '${c.username}')">Reply</span>
@@ -501,17 +642,21 @@ function loadComments(postId) {
                 replyBox.innerHTML += `
                     <div style="margin-bottom: 5px; margin-top: 5px; display:flex; gap:8px;">
                         <img src="${img}" style="width:25px; height:25px; border-radius:50%; cursor:pointer;" onclick="openProfileModal(${r.user_id})">
-                        <div>
-                            <div style="background:#f0f2f5; padding:5px 10px; border-radius:12px; display:inline-block;">
+                        <div style="max-width: 100%;">
+                            <div style="background:rgba(255,255,255,0.05); border: 1px solid var(--border-color); padding:5px 10px; border-radius:12px; display:inline-block; max-width: 100%;">
                                 <strong style="cursor:pointer; color:var(--primary); font-size:12px;" onclick="openProfileModal(${r.user_id})">${r.username}</strong>
-                                <p style="margin:2px 0 0 0; font-size:13px;">${r.comment_text}</p>
+                                <p class="comment-text" style="margin:2px 0 0 0; font-size:13px; color:white;">${r.comment_text}</p>
                             </div>
                         </div>
                     </div>
                 `;
             }
         });
+        
         list.scrollTop = list.scrollHeight;
+        
+        // ระบบ See More สำหรับคอมเมนต์
+        setTimeout(() => applySeeMore('.comment-text'), 100);
     });
 }
 
