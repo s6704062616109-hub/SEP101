@@ -164,6 +164,7 @@ $result_posts = $stmt_posts->get_result();
             <?php if ($result_posts->num_rows > 0): ?>
                 <?php while($post = $result_posts->fetch_assoc()): ?>
                     <div class="post-card">
+                        
                         <div class="post-header">
                             <div style="display: flex; align-items: center; gap: 12px;">
                                 <?php $author_img = !empty($post['profile_picture']) ? $post['profile_picture'] : 'https://via.placeholder.com/45?text=U'; ?>
@@ -174,8 +175,16 @@ $result_posts = $stmt_posts->get_result();
                                 </div>
                             </div>
                             
-                            <?php if ($user_data['role'] == 'admin'): ?>
-                                <a href="delete_post.php?id=<?php echo $post['post_id']; ?>" class="btn btn-danger" style="padding: 5px 10px; font-size: 12px; height: fit-content;" onclick="return confirm('As an Admin, are you sure you want to delete this post?');">🗑️ Delete</a>
+                            <?php if ($user_data['role'] == 'admin' || $user_id == $post['post_user_id']): ?>
+                                <div style="display:flex; gap: 8px;">
+                                    <?php if ($post['status'] != 'resolved'): ?>
+                                        <a href="resolve_post.php?id=<?php echo $post['post_id']; ?>" class="btn btn-success" style="padding: 5px 10px; font-size: 12px; height: fit-content; background-color: #22c55e;" onclick="return confirm('Change this post status to Resolved?');">✅ Resolve</a>
+                                    <?php endif; ?>
+                                    <?php if ($user_id == $post['post_user_id']): ?>
+                                        <a href="edit_post.php?id=<?php echo $post['post_id']; ?>" class="btn btn-warning" style="padding: 5px 10px; font-size: 12px; height: fit-content;">✏️ Edit</a>
+                                    <?php endif; ?>
+                                    <a href="delete_post.php?id=<?php echo $post['post_id']; ?>" class="btn btn-danger" style="padding: 5px 10px; font-size: 12px; height: fit-content;" onclick="return confirm('Are you sure you want to delete this post?');">🗑️ Delete</a>
+                                </div>
                             <?php endif; ?>
                         </div>
 
@@ -376,7 +385,7 @@ $result_posts = $stmt_posts->get_result();
 </div>
 
 <script>
-// ฟังก์ชันสร้างปุ่ม See More สำหรับข้อความยาวๆ (ทั้งหน้าฟีดและในคอมเมนต์)
+// ฟังก์ชันสร้างปุ่ม See More
 function applySeeMore(selector) {
     document.querySelectorAll(selector).forEach(function(elem) {
         if (elem.nextElementSibling && elem.nextElementSibling.classList.contains('see-more-btn')) return;
@@ -622,7 +631,7 @@ function loadComments(postId) {
             list.innerHTML += `
                 <div style="margin-bottom: 5px; display:flex; gap:10px;">
                     <img src="${img}" style="width:35px; height:35px; border-radius:50%; cursor:pointer;" onclick="openProfileModal(${c.user_id})">
-                    <div style="flex-grow: 1;">
+                    <div style="flex-grow: 1; max-width: calc(100% - 45px);">
                         <div style="background:rgba(255,255,255,0.05); border: 1px solid var(--border-color); padding:8px 12px; border-radius:12px; display:inline-block; max-width: 100%;">
                             <strong style="cursor:pointer; color:var(--primary); font-size:14px;" onclick="openProfileModal(${c.user_id})">${c.username}</strong>
                             <p class="comment-text" style="margin:2px 0 0 0; font-size:14px; color:white;">${c.comment_text}</p>
@@ -642,7 +651,7 @@ function loadComments(postId) {
                 replyBox.innerHTML += `
                     <div style="margin-bottom: 5px; margin-top: 5px; display:flex; gap:8px;">
                         <img src="${img}" style="width:25px; height:25px; border-radius:50%; cursor:pointer;" onclick="openProfileModal(${r.user_id})">
-                        <div style="max-width: 100%;">
+                        <div style="max-width: calc(100% - 35px);">
                             <div style="background:rgba(255,255,255,0.05); border: 1px solid var(--border-color); padding:5px 10px; border-radius:12px; display:inline-block; max-width: 100%;">
                                 <strong style="cursor:pointer; color:var(--primary); font-size:12px;" onclick="openProfileModal(${r.user_id})">${r.username}</strong>
                                 <p class="comment-text" style="margin:2px 0 0 0; font-size:13px; color:white;">${r.comment_text}</p>
@@ -655,7 +664,7 @@ function loadComments(postId) {
         
         list.scrollTop = list.scrollHeight;
         
-        // ระบบ See More สำหรับคอมเมนต์
+        // ให้ระบบ See more ตรวจสอบคอมเมนต์ทั้งหมดอีกครั้งหลังโหลดเสร็จ
         setTimeout(() => applySeeMore('.comment-text'), 100);
     });
 }
