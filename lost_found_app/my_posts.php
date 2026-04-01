@@ -95,6 +95,7 @@ $result_posts = $stmt_posts->get_result();
             <?php if ($result_posts->num_rows > 0): ?>
                 <?php while($post = $result_posts->fetch_assoc()): ?>
                     <div class="post-card">
+                        
                         <div class="post-header">
                             <div style="display: flex; align-items: center; gap: 12px;">
                                 <?php $author_img = !empty($post['profile_picture']) ? $post['profile_picture'] : 'https://via.placeholder.com/45?text=U'; ?>
@@ -104,10 +105,18 @@ $result_posts = $stmt_posts->get_result();
                                     <p class="post-time"><?php echo date('d M Y, H:i', strtotime($post['created_at'])); ?></p>
                                 </div>
                             </div>
-                            <div style="display:flex; gap: 8px;">
-                                <a href="edit_post.php?id=<?php echo $post['post_id']; ?>" class="btn btn-warning" style="padding: 5px 10px; font-size: 12px; height: fit-content;">✏️ Edit</a>
-                                <a href="delete_post.php?id=<?php echo $post['post_id']; ?>" class="btn btn-danger" style="padding: 5px 10px; font-size: 12px; height: fit-content;" onclick="return confirm('Are you sure you want to delete this post?');">🗑️ Delete</a>
-                            </div>
+                            
+                            <?php if ($user_data['role'] == 'admin' || $user_id == $post['post_user_id']): ?>
+                                <div style="display:flex; gap: 8px;">
+                                    <?php if ($post['status'] != 'resolved'): ?>
+                                        <a href="resolve_post.php?id=<?php echo $post['post_id']; ?>" class="btn btn-success" style="padding: 5px 10px; font-size: 12px; height: fit-content; background-color: #22c55e;" onclick="return confirm('Change this post status to Resolved?');">✅ Resolve</a>
+                                    <?php endif; ?>
+                                    <?php if ($user_id == $post['post_user_id']): ?>
+                                        <a href="edit_post.php?id=<?php echo $post['post_id']; ?>" class="btn btn-warning" style="padding: 5px 10px; font-size: 12px; height: fit-content;">✏️ Edit</a>
+                                    <?php endif; ?>
+                                    <a href="delete_post.php?id=<?php echo $post['post_id']; ?>" class="btn btn-danger" style="padding: 5px 10px; font-size: 12px; height: fit-content;" onclick="return confirm('Are you sure you want to delete this post?');">🗑️ Delete</a>
+                                </div>
+                            <?php endif; ?>
                         </div>
 
                         <div class="post-body">
@@ -159,6 +168,9 @@ $result_posts = $stmt_posts->get_result();
                                 </div>
                             <?php endif; ?>
                         </div>
+                        <div class="post-footer">
+                            <button onclick="openModal(<?php echo $post['post_id']; ?>)" class="comment-btn">💬 Comments</button>
+                        </div>
                     </div>
                 <?php endwhile; ?>
             <?php else: ?>
@@ -192,6 +204,19 @@ $result_posts = $stmt_posts->get_result();
     </div>
 </div>
 
+<div id="commentModal" class="modal">
+    <div class="modal-content">
+        <span class="close-btn" onclick="closeModal()">&times;</span>
+        <h3 style="margin-top: 0; border-bottom: 1px solid var(--border-color); padding-bottom: 10px;">Comments</h3>
+        <div id="commentList" class="comment-list" style="margin-bottom: 15px; max-height: 300px; overflow-y:auto; scrollbar-width: thin;"></div>
+        <div class="comment-input-area" style="display:flex; gap:10px;">
+            <input type="hidden" id="modalPostId">
+            <input type="text" id="commentText" placeholder="Write a comment..." maxlength="500" onkeypress="handleEnter(event)" style="flex-grow:1; padding:10px; border-radius:8px; border:1px solid var(--border-color); font-family: inherit; background: rgba(255,255,255,0.05); color:white; outline:none;">
+            <button onclick="submitComment()" class="btn btn-primary">Send</button>
+        </div>
+    </div>
+</div>
+
 <div id="lightboxModal" class="lightbox-modal">
     <span class="lightbox-close" onclick="closeLightbox()">&times;</span>
     <div class="lightbox-counter" id="lightboxCounter">1 / 1</div>
@@ -216,6 +241,7 @@ function applySeeMore(selector) {
         }
     });
 }
+
 document.addEventListener("DOMContentLoaded", function() {
     setTimeout(() => applySeeMore('.post-desc'), 200);
 });
@@ -296,14 +322,72 @@ function closeLightbox() { document.getElementById('lightboxModal').style.displa
 function changeLightboxImage(e, direction) { e.stopPropagation(); currentLightboxIndex += direction; if (currentLightboxIndex >= currentLightboxImages.length) currentLightboxIndex = 0; else if (currentLightboxIndex < 0) currentLightboxIndex = currentLightboxImages.length - 1; updateLightboxImage(); }
 function updateLightboxImage() { if(currentLightboxImages.length > 0) { document.getElementById('lightboxImg').src = currentLightboxImages[currentLightboxIndex]; document.getElementById('lightboxCounter').innerText = (currentLightboxIndex + 1) + " / " + currentLightboxImages.length; let navs = document.querySelectorAll('.lightbox-nav'); if(currentLightboxImages.length <= 1) navs.forEach(nav => nav.style.display = 'none'); else navs.forEach(nav => nav.style.display = 'flex'); } }
 
+let replyingToId = null; 
+function openModal(postId) { document.getElementById('commentModal').style.display = 'flex'; document.getElementById('modalPostId').value = postId; loadComments(postId); }
+function closeModal() { document.getElementById('commentModal').style.display = 'none'; cancelReply(); }
+function setReply(commentId, username) { replyingToId = commentId; let input = document.getElementById('commentText'); input.placeholder = "Replying to " + username + "..."; input.focus(); }
+function cancelReply() { replyingToId = null; document.getElementById('commentText').value = ''; document.getElementById('commentText').placeholder = "Write a comment..."; }
+
+function loadComments(postId) {
+    let list = document.getElementById('commentList');
+    list.innerHTML = '<p style="text-align:center; color:gray;">Loading...</p>';
+    fetch('get_comments.php?post_id=' + postId).then(r => r.json()).then(data => {
+        list.innerHTML = '';
+        if(data.length === 0) { list.innerHTML = '<p style="text-align:center; color:gray;">No comments yet</p>'; return; }
+        let mainComments = data.filter(c => c.parent_id === null);
+        let replies = data.filter(c => c.parent_id !== null);
+        mainComments.forEach(c => {
+            let img = c.profile_picture ? c.profile_picture : 'https://via.placeholder.com/35?text=U';
+            list.innerHTML += `
+                <div style="margin-bottom: 5px; display:flex; gap:10px;">
+                    <img src="${img}" style="width:35px; height:35px; border-radius:50%;">
+                    <div style="flex-grow: 1; max-width: calc(100% - 45px);">
+                        <div style="background:rgba(255,255,255,0.05); border: 1px solid var(--border-color); padding:8px 12px; border-radius:12px; display:inline-block; max-width: 100%;">
+                            <strong style="color:var(--primary); font-size:14px;">${c.username}</strong>
+                            <p class="comment-text" style="margin:2px 0 0 0; font-size:14px; color:white;">${c.comment_text}</p>
+                        </div>
+                        <div style="margin-top: 3px; margin-left: 10px;">
+                            <span style="font-size:12px; cursor:pointer; font-weight:bold; color:var(--text-muted);" onclick="setReply(${c.id}, '${c.username}')">Reply</span>
+                        </div>
+                    </div>
+                </div>
+                <div id="replies-${c.id}" style="margin-left: 45px; margin-bottom: 15px;"></div>
+            `;
+        });
+        replies.forEach(r => {
+            let replyBox = document.getElementById('replies-' + r.parent_id);
+            if(replyBox) {
+                let img = r.profile_picture ? r.profile_picture : 'https://via.placeholder.com/35?text=U';
+                replyBox.innerHTML += `
+                    <div style="margin-bottom: 5px; margin-top: 5px; display:flex; gap:8px;">
+                        <img src="${img}" style="width:25px; height:25px; border-radius:50%;">
+                        <div style="max-width: calc(100% - 35px);">
+                            <div style="background:rgba(255,255,255,0.05); border: 1px solid var(--border-color); padding:5px 10px; border-radius:12px; display:inline-block; max-width: 100%;">
+                                <strong style="color:var(--primary); font-size:12px;">${r.username}</strong>
+                                <p class="comment-text" style="margin:2px 0 0 0; font-size:13px; color:white;">${r.comment_text}</p>
+                            </div>
+                        </div>
+                    </div>
+                `;
+            }
+        });
+        list.scrollTop = list.scrollHeight;
+        setTimeout(() => applySeeMore('.comment-text'), 100);
+    });
+}
+
+function submitComment() {
+    let postId = document.getElementById('modalPostId').value; let textInput = document.getElementById('commentText'); let text = textInput.value.trim();
+    if(text === '') return; let formData = new FormData(); formData.append('post_id', postId); formData.append('comment_text', text);
+    if(replyingToId !== null) formData.append('parent_id', replyingToId);
+    fetch('add_comment.php', { method: 'POST', body: formData }).then(r => r.text()).then(result => { if(result === 'success') { cancelReply(); loadComments(postId); } else { alert('Error submitting comment'); } });
+}
+function handleEnter(e) { if(e.key === 'Enter') submitComment(); }
+
 window.onclick = function(event) {
     document.querySelectorAll('.notif-dropdown').forEach(d => d.classList.remove('show'));
-    let lModal = document.getElementById('lightboxModal');
-    let nModal = document.getElementById('notificationModal');
-    let mModal = document.getElementById('mutedUsersModal');
-    if (event.target == lModal) closeLightbox();
-    if (event.target == nModal) closeNotificationModal();
-    if (event.target == mModal) closeMutedUsersModal();
+    let cModal = document.getElementById('commentModal'); let lModal = document.getElementById('lightboxModal'); let nModal = document.getElementById('notificationModal'); let mModal = document.getElementById('mutedUsersModal');
+    if (event.target == cModal) closeModal(); if (event.target == lModal) closeLightbox(); if (event.target == nModal) closeNotificationModal(); if (event.target == mModal) closeMutedUsersModal();
 }
 </script>
 </body>
